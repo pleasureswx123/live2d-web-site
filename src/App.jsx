@@ -92,6 +92,18 @@ function Live2DComponent({ onModelLoad }) {
           }
         })
 
+        // 初始化眼部参数，确保模型默认睁眼
+        try {
+          if (model.internalModel && model.internalModel.coreModel) {
+            // 设置眼部参数为睁眼状态
+            model.internalModel.coreModel.setParameterValueById('ParamEyeLOpen', 1)
+            model.internalModel.coreModel.setParameterValueById('ParamEyeROpen', 1)
+            console.log('👁️ 已初始化眼部参数为睁眼状态')
+          }
+        } catch (error) {
+          console.warn('⚠️ 初始化眼部参数失败:', error)
+        }
+
         setModel(model)
         console.log('✅ Live2D 模型加载成功')
 

@@ -94,7 +94,9 @@
 			"Idle": [
 				{
 					"File": "jichudonghua.motion3.json"
-				},
+				}
+			],
+			"Sleep": [
 				{
 					"File": "shuijiao.motion3.json"
 				},

@@ -90,9 +90,11 @@ const EXPRESSIONS = [
 // 动作列表 - 按照 Cubism 4 标准分组结构组织
 const MOTIONS = {
   'Idle': [
-    { id: 0, name: '基础动画', icon: '🌟', file: 'jichudonghua.motion3.json', key: 'jichudonghua' },
-    { id: 1, name: '睡觉', icon: '😴', file: 'shuijiao.motion3.json', key: 'shuijiao' },
-    { id: 2, name: '睡眠', icon: '💤', file: 'sleep.motion3.json', key: 'sleep' }
+    { id: 0, name: '基础动画', icon: '🌟', file: 'jichudonghua.motion3.json', key: 'jichudonghua' }
+  ],
+  'Sleep': [
+    { id: 0, name: '睡觉', icon: '😴', file: 'shuijiao.motion3.json', key: 'shuijiao' },
+    { id: 1, name: '睡眠', icon: '💤', file: 'sleep.motion3.json', key: 'sleep' }
   ],
   'TapBody': [
     { id: 0, name: '点头', icon: '👍', file: 'diantou.motion3.json', key: 'diantou' },
@@ -108,6 +110,7 @@ const MOTIONS = {
 const getGroupDisplayName = (group) => {
   const groupNames = {
     'Idle': '待机动作',
+    'Sleep': '睡眠动作',
     'TapBody': '身体交互',
     'TapHead': '头部交互'
   }
