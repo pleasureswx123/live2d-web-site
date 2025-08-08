@@ -91,13 +91,7 @@
 			}
 		],
 		"Motions": {
-			"": [
-				{
-					"File": "diantou.motion3.json"
-				},
-				{
-					"File": "huishou.motion3.json"
-				},
+			"Idle": [
 				{
 					"File": "jichudonghua.motion3.json"
 				},
@@ -106,12 +100,22 @@
 				},
 				{
 					"File": "sleep.motion3.json"
+				}
+			],
+			"TapBody": [
+				{
+					"File": "diantou.motion3.json"
 				},
 				{
-					"File": "yanzhuzi.motion3.json"
+					"File": "huishou.motion3.json"
 				},
 				{
 					"File": "yaotou.motion3.json"
+				}
+			],
+			"TapHead": [
+				{
+					"File": "yanzhuzi.motion3.json"
 				}
 			]
 		}

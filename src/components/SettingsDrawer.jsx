@@ -7,8 +7,10 @@ import {
   Sliders,
   X,
   ChevronRight,
-  RotateCcw
+  RotateCcw,
+  Volume2
 } from 'lucide-react'
+import LipSyncPanel from './LipSyncPanel'
 
 // 尝试导入 MotionPriority，如果失败则使用数字常量
 let MotionPriority
@@ -85,17 +87,31 @@ const EXPRESSIONS = [
   { id: 'guilian', name: '鬼脸', emoji: '😜' }
 ]
 
-// 动作列表 - 严格按照 youyou.model3.json 中的顺序 (第94-116行)
+// 动作列表 - 按照 Cubism 4 标准分组结构组织
 const MOTIONS = {
-  '': [
-    { id: 0, name: '点头', icon: '👍', file: 'diantou.motion3.json', key: 'diantou' },        // 索引0 ✅
-    { id: 1, name: '挥手', icon: '👋', file: 'huishou.motion3.json', key: 'huishou' },        // 索引1 ✅
-    { id: 2, name: '基础动画', icon: '🌟', file: 'jichudonghua.motion3.json', key: 'jichudonghua' }, // 索引2
-    { id: 3, name: '睡觉', icon: '😴', file: 'shuijiao.motion3.json', key: 'shuijiao' },       // 索引3
-    { id: 4, name: '睡眠', icon: '💤', file: 'sleep.motion3.json', key: 'sleep' },          // 索引4
-    { id: 5, name: '眼珠子', icon: '👀', file: 'yanzhuzi.motion3.json', key: 'yanzhuzi' },      // 索引5 ✅
-    { id: 6, name: '摇头', icon: '👎', file: 'yaotou.motion3.json', key: 'yaotou' }          // 索引6
+  'Idle': [
+    { id: 0, name: '基础动画', icon: '🌟', file: 'jichudonghua.motion3.json', key: 'jichudonghua' },
+    { id: 1, name: '睡觉', icon: '😴', file: 'shuijiao.motion3.json', key: 'shuijiao' },
+    { id: 2, name: '睡眠', icon: '💤', file: 'sleep.motion3.json', key: 'sleep' }
+  ],
+  'TapBody': [
+    { id: 0, name: '点头', icon: '👍', file: 'diantou.motion3.json', key: 'diantou' },
+    { id: 1, name: '挥手', icon: '👋', file: 'huishou.motion3.json', key: 'huishou' },
+    { id: 2, name: '摇头', icon: '🙅', file: 'yaotou.motion3.json', key: 'yaotou' }
+  ],
+  'TapHead': [
+    { id: 0, name: '眼珠子', icon: '👀', file: 'yanzhuzi.motion3.json', key: 'yanzhuzi' }
   ]
+}
+
+// 动作分组名称映射 (Cubism 4 标准)
+const getGroupDisplayName = (group) => {
+  const groupNames = {
+    'Idle': '待机动作',
+    'TapBody': '身体交互',
+    'TapHead': '头部交互'
+  }
+  return groupNames[group] || group || '默认动作'
 }
 
 // 根据动作索引获取动作键名
@@ -400,6 +416,17 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
                 动作
               </button>
               <button
+                onClick={() => setActiveTab('lipsync')}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'lipsync'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-700'
+                }`}
+              >
+                <Volume2 size={16} className="inline mr-2" />
+                口型
+              </button>
+              <button
                 onClick={() => setActiveTab('parameters')}
                 className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
                   activeTab === 'parameters'
@@ -464,7 +491,7 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
                     <div key={group || 'default'} className="space-y-2">
                       <h4 className="text-md font-medium text-blue-300 flex items-center gap-2">
                         <ChevronRight size={16} />
-                        {group || '默认动作'} 组
+                        {getGroupDisplayName(group)}
                       </h4>
                       <div className="grid grid-cols-1 gap-2 ml-4">
                         {motions.map((motion) => (
@@ -481,6 +508,14 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
                     </div>
                   ))}
                 </div>
+              )}
+
+              {/* 口型同步面板 */}
+              {activeTab === 'lipsync' && (
+                <LipSyncPanel
+                  model={model}
+                  isModelLoaded={!!model}
+                />
               )}
 
               {/* 参数面板 */}
