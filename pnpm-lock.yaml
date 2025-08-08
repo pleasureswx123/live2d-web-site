@@ -6,7 +6,7 @@ settings:
 
 dependencies:
   '@pixi/react':
-    specifier: ^7.1.2
+    specifier: 7.1.2
     version: 7.1.2(@babel/runtime@7.28.2)(@pixi/app@7.4.3)(@pixi/constants@7.4.3)(@pixi/core@7.4.3)(@pixi/display@7.4.3)(@pixi/extensions@7.4.3)(@pixi/graphics@7.4.3)(@pixi/math@7.4.3)(@pixi/mesh-extras@7.4.3)(@pixi/mesh@7.4.3)(@pixi/particle-container@7.4.3)(@pixi/sprite-animated@7.4.3)(@pixi/sprite-tiling@7.4.3)(@pixi/sprite@7.4.3)(@pixi/text-bitmap@7.4.3)(@pixi/text@7.4.3)(@pixi/ticker@7.4.3)(prop-types@15.8.1)(react-dom@18.3.1)(react@18.3.1)
   '@radix-ui/react-dialog':
     specifier: ^1.1.14
@@ -42,7 +42,7 @@ dependencies:
     specifier: 0.5.0-ls-8
     version: 0.5.0-ls-8(pixi.js@7.4.3)
   pixi.js:
-    specifier: ^7.4.2
+    specifier: 7.4.3
     version: 7.4.3
   react:
     specifier: ^18.2.0

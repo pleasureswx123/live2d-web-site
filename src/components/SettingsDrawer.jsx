@@ -1,14 +1,65 @@
 import { useState } from 'react'
 import { Drawer } from 'vaul'
-import { 
-  Settings, 
-  Smile, 
-  Play, 
-  Sliders, 
+import {
+  Settings,
+  Smile,
+  Play,
+  Sliders,
   X,
   ChevronRight,
   RotateCcw
 } from 'lucide-react'
+
+// 尝试导入 MotionPriority，如果失败则使用数字常量
+let MotionPriority
+try {
+  MotionPriority = require('pixi-live2d-display-lipsyncpatch').MotionPriority
+} catch (error) {
+  // 如果导入失败，使用数字常量
+  MotionPriority = {
+    NONE: 0,
+    IDLE: 1,
+    NORMAL: 2,
+    FORCE: 3
+  }
+}
+
+// 智能冲突检测系统
+const CONFLICT_RULES = {
+  // 表情和动作的冲突规则
+  expressions: {
+    // 涉及手臂/手部的表情
+    'baoxiong': ['arm', 'hand'], // 抱胸 - 影响手臂
+    'chayao': ['arm', 'hand'],   // 叉腰 - 影响手臂和手部
+  },
+  motions: {
+    // 涉及手臂/手部的动作
+    'huishou': ['arm', 'hand'],     // 挥手 - 影响手臂和手部
+    'diantou': ['head'],            // 点头 - 只影响头部
+    'yaotou': ['head'],             // 摇头 - 只影响头部
+    'yanzhuzi': ['eye'],            // 眼珠子 - 只影响眼部
+    'shuijiao': ['eye', 'body'],    // 睡觉 - 影响眼部和身体
+    'sleep': ['eye', 'body'],       // 睡眠 - 影响眼部和身体
+    'jichudonghua': ['body']        // 基础动画 - 影响身体
+  }
+}
+
+// 检查表情和动作是否冲突
+const checkConflict = (expressionId, motionId) => {
+  if (!expressionId || !motionId) return false
+
+  const expressionParts = CONFLICT_RULES.expressions[expressionId] || []
+  const motionParts = CONFLICT_RULES.motions[motionId] || []
+
+  // 检查是否有共同的身体部位
+  const hasConflict = expressionParts.some(part => motionParts.includes(part))
+
+  if (hasConflict) {
+    console.log(`⚠️ 检测到冲突: 表情 "${expressionId}" 和动作 "${motionId}" 都影响: ${expressionParts.filter(part => motionParts.includes(part)).join(', ')}`)
+  }
+
+  return hasConflict
+}
 
 // 表情列表 - 基于 youyou.model3.json
 const EXPRESSIONS = [
@@ -34,62 +85,252 @@ const EXPRESSIONS = [
   { id: 'guilian', name: '鬼脸', emoji: '😜' }
 ]
 
-// 动作列表 - 基于 youyou.model3.json
+// 动作列表 - 严格按照 youyou.model3.json 中的顺序 (第94-116行)
 const MOTIONS = {
-  'Idle': [
-    { id: 'sleep', name: '睡觉', icon: '😴' },
-    { id: 'jichudonghua', name: '基础动画', icon: '🌟' }
-  ],
-  'TapBody': [
-    { id: 'huishou', name: '挥手', icon: '👋' },
-    { id: 'diantou', name: '点头', icon: '👍' },
-    { id: 'yaotou', name: '摇头', icon: '👎' }
-  ],
-  'TapHead': [
-    { id: 'yanzhuzi', name: '眼珠子', icon: '👀' },
-    { id: 'shuijiao', name: '睡觉', icon: '😴' }
+  '': [
+    { id: 0, name: '点头', icon: '👍', file: 'diantou.motion3.json', key: 'diantou' },        // 索引0 ✅
+    { id: 1, name: '挥手', icon: '👋', file: 'huishou.motion3.json', key: 'huishou' },        // 索引1 ✅
+    { id: 2, name: '基础动画', icon: '🌟', file: 'jichudonghua.motion3.json', key: 'jichudonghua' }, // 索引2
+    { id: 3, name: '睡觉', icon: '😴', file: 'shuijiao.motion3.json', key: 'shuijiao' },       // 索引3
+    { id: 4, name: '睡眠', icon: '💤', file: 'sleep.motion3.json', key: 'sleep' },          // 索引4
+    { id: 5, name: '眼珠子', icon: '👀', file: 'yanzhuzi.motion3.json', key: 'yanzhuzi' },      // 索引5 ✅
+    { id: 6, name: '摇头', icon: '👎', file: 'yaotou.motion3.json', key: 'yaotou' }          // 索引6
   ]
+}
+
+// 根据动作索引获取动作键名
+const getMotionKey = (motionId) => {
+  const allMotions = Object.values(MOTIONS).flat()
+  const motion = allMotions.find(m => m.id === motionId)
+  return motion ? motion.key : null
 }
 
 function SettingsDrawer({ model, isOpen, onOpenChange }) {
   const [activeTab, setActiveTab] = useState('expressions')
   const [currentExpression, setCurrentExpression] = useState(null)
+  const [currentMotion, setCurrentMotion] = useState(null)
+
+  // 获取当前播放的动作
+  const getCurrentMotion = () => {
+    return currentMotion
+  }
 
   // 播放表情
-  const playExpression = (expressionId) => {
-    if (model && model.expression) {
-      try {
-        model.expression(expressionId)
-        setCurrentExpression(expressionId)
-        console.log('🎭 播放表情:', expressionId)
-      } catch (error) {
-        console.error('❌ 表情播放失败:', error)
+  const playExpression = async (expressionId) => {
+    if (!model) {
+      console.error('❌ 模型实例不存在')
+      return
+    }
+
+    try {
+      console.log('🎭 尝试播放表情:', expressionId)
+
+      // 🔍 智能冲突检测：检查当前播放的动作是否与表情冲突
+      const currentMotionKey = getCurrentMotion()
+      if (currentMotionKey && checkConflict(expressionId, currentMotionKey)) {
+        console.log('⚠️ 检测到表情与动作冲突，强制停止当前动作')
+
+        // 强制停止动作并等待完成
+        try {
+          if (model.internalModel?.motionManager) {
+            const motionManager = model.internalModel.motionManager
+            if (typeof motionManager.stopAllMotions === 'function') {
+              motionManager.stopAllMotions()
+              console.log('🛑 已停止所有动作')
+            }
+
+            // 等待动作停止生效
+            await new Promise(resolve => setTimeout(resolve, 100))
+            console.log('⏱️ 已等待动作停止生效')
+          }
+
+          setCurrentMotion(null)
+        } catch (error) {
+          console.error('❌ 动作停止失败:', error)
+        }
+      } else if (currentMotionKey) {
+        console.log('✅ 表情与当前动作无冲突，可以同时播放')
       }
+
+      // 尝试多种表情播放方式
+      let success = false
+
+      // 方式1: 使用标准的 expression 方法
+      if (typeof model.expression === 'function') {
+        console.log('🎭 使用 model.expression() 方法')
+        const result = model.expression(expressionId)
+        console.log('🎭 表情播放结果:', result)
+
+        // 如果返回的是 Promise，等待它完成
+        if (result && typeof result.then === 'function') {
+          try {
+            success = await result
+            console.log('🎭 Promise 解析结果:', success)
+          } catch (error) {
+            console.error('🎭 Promise 解析失败:', error)
+            success = false
+          }
+        } else {
+          success = result !== false
+          console.log('🎭 同步结果:', success)
+        }
+      }
+
+      // 方式2: 如果标准方法失败，尝试使用内部 API
+      if (!success && model.internalModel?.motionManager?.expressionManager) {
+        console.log('🎭 使用内部 expressionManager')
+        const expressionManager = model.internalModel.motionManager.expressionManager
+
+        // 尝试多种内部方法
+        if (typeof expressionManager.setExpression === 'function') {
+          console.log('🎭 尝试 setExpression')
+          const result = expressionManager.setExpression(expressionId)
+          console.log('🎭 setExpression 结果:', result)
+          success = result !== false
+        } else if (typeof expressionManager.startMotion === 'function') {
+          console.log('🎭 尝试 startMotion')
+          const result = expressionManager.startMotion(expressionId, false, 2)
+          console.log('🎭 startMotion 结果:', result)
+          success = result !== false
+        }
+      }
+
+      if (success) {
+        setCurrentExpression(expressionId)
+        console.log('✅ 表情播放成功:', expressionId)
+      } else {
+        console.warn('⚠️ 表情播放失败，可能表情不存在:', expressionId)
+      }
+
+    } catch (error) {
+      console.error('❌ 表情播放失败:', error)
     }
   }
 
   // 播放动作
-  const playMotion = (group, motionId) => {
-    if (model && model.motion) {
-      try {
-        model.motion(group, motionId, 3) // 优先级为3
-        console.log('🎬 播放动作:', group, motionId)
-      } catch (error) {
-        console.error('❌ 动作播放失败:', error)
+  const playMotion = async (group, motionId) => {
+    if (!model) {
+      console.error('❌ 模型实例不存在')
+      return
+    }
+
+    try {
+      console.log('🎬 尝试播放动作:', group, motionId)
+
+      // 🔍 智能冲突检测：检查当前表情是否与动作冲突
+      const motionKey = getMotionKey(motionId)
+      if (currentExpression && motionKey && checkConflict(currentExpression, motionKey)) {
+        console.log('⚠️ 检测到动作与表情冲突，强制重置表情')
+
+        // 强制重置表情并等待完成
+        try {
+          if (model.internalModel?.motionManager?.expressionManager) {
+            const expressionManager = model.internalModel.motionManager.expressionManager
+            if (typeof expressionManager.setExpression === 'function') {
+              const resetResult = expressionManager.setExpression(null)
+              if (resetResult && typeof resetResult.then === 'function') {
+                await resetResult
+                console.log('🛑 已等待表情重置完成（Promise）')
+              } else {
+                console.log('🛑 已重置表情（同步）')
+              }
+            }
+          } else if (typeof model.expression === 'function') {
+            const resetResult = model.expression(null)
+            if (resetResult && typeof resetResult.then === 'function') {
+              await resetResult
+              console.log('🛑 已等待标准 API 表情重置完成')
+            } else {
+              console.log('🛑 已使用标准 API 重置表情（同步）')
+            }
+          }
+
+          // 额外等待一帧确保重置生效
+          await new Promise(resolve => setTimeout(resolve, 50))
+          console.log('⏱️ 已等待额外时间确保表情重置生效')
+
+          setCurrentExpression(null)
+        } catch (error) {
+          console.error('❌ 表情重置失败:', error)
+        }
+      } else if (currentExpression) {
+        console.log('✅ 动作与当前表情无冲突，可以同时播放')
       }
+
+      // 使用标准的 pixi-live2d-display API
+      if (typeof model.motion === 'function') {
+        // 使用 FORCE 优先级来避免动作重叠
+        // 根据官方文档：FORCE 优先级确保动作立即播放，覆盖当前动作
+        const result = model.motion(group, motionId, MotionPriority.FORCE)
+        console.log('🎬 动作播放结果:', result)
+
+        // 如果返回的是 Promise，等待它完成
+        if (result && typeof result.then === 'function') {
+          const success = await result
+          if (success !== false) {
+            console.log('✅ 动作播放成功:', group, motionId)
+            // 设置当前动作状态
+            setCurrentMotion(motionId)
+            // 只有在冲突时才清除表情状态
+            if (currentExpression && motionKey && checkConflict(currentExpression, motionKey)) {
+              setCurrentExpression(null)
+            }
+          } else {
+            console.warn('⚠️ 动作播放失败，可能动作不存在:', group, motionId)
+          }
+        } else {
+          // 同步结果
+          if (result !== false) {
+            console.log('✅ 动作播放成功:', group, motionId)
+            // 设置当前动作状态
+            setCurrentMotion(motionId)
+            // 只有在冲突时才清除表情状态
+            if (currentExpression && motionKey && checkConflict(currentExpression, motionKey)) {
+              setCurrentExpression(null)
+            }
+          } else {
+            console.warn('⚠️ 动作播放返回 false，可能动作不存在:', group, motionId)
+          }
+        }
+      } else {
+        console.error('❌ 模型不支持 motion 方法')
+      }
+    } catch (error) {
+      console.error('❌ 动作播放失败:', error)
     }
   }
 
-  // 重置表情
+  // 重置表情和动作
   const resetExpression = () => {
-    if (model && model.expression) {
-      try {
-        model.expression(null)
-        setCurrentExpression(null)
-        console.log('🔄 重置表情')
-      } catch (error) {
-        console.error('❌ 重置表情失败:', error)
+    if (!model) {
+      console.error('❌ 模型实例不存在')
+      return
+    }
+
+    try {
+      console.log('🔄 尝试重置表情和动作')
+
+      // 停止所有动作
+      if (model.internalModel?.motionManager) {
+        const motionManager = model.internalModel.motionManager
+        if (typeof motionManager.stopAllMotions === 'function') {
+          motionManager.stopAllMotions()
+          console.log('🛑 已停止所有动作')
+        }
       }
+
+      // 重置表情
+      if (typeof model.expression === 'function') {
+        const result = model.expression(null)
+        console.log('🔄 表情重置结果:', result)
+        setCurrentExpression(null)
+        setCurrentMotion(null) // 清除动作状态
+        console.log('✅ 表情和动作重置成功')
+      } else {
+        console.error('❌ 模型不支持 expression 方法')
+      }
+    } catch (error) {
+      console.error('❌ 重置失败:', error)
     }
   }
 
@@ -105,8 +346,8 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
       </button>
 
       {/* 抽屉组件 */}
-      <Drawer.Root 
-        open={isOpen} 
+      <Drawer.Root
+        open={isOpen}
         onOpenChange={onOpenChange}
         direction="right"
       >
@@ -128,6 +369,11 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
                 <X size={18} />
               </button>
             </div>
+
+            {/* 添加 Description 以解决无障碍性警告 */}
+            <Drawer.Description className="sr-only">
+              Live2D 模型设置面板，可以控制表情、动作和参数
+            </Drawer.Description>
 
             {/* 标签页导航 */}
             <div className="flex border-b border-gray-700">
@@ -181,7 +427,7 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
                       重置
                     </button>
                   </div>
-                  
+
                   {currentExpression && (
                     <div className="p-3 bg-blue-600 bg-opacity-20 border border-blue-500 rounded-lg">
                       <p className="text-sm text-blue-200">
@@ -213,12 +459,12 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
               {activeTab === 'motions' && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">动作控制</h3>
-                  
+
                   {Object.entries(MOTIONS).map(([group, motions]) => (
-                    <div key={group} className="space-y-2">
+                    <div key={group || 'default'} className="space-y-2">
                       <h4 className="text-md font-medium text-blue-300 flex items-center gap-2">
                         <ChevronRight size={16} />
-                        {group} 组
+                        {group || '默认动作'} 组
                       </h4>
                       <div className="grid grid-cols-1 gap-2 ml-4">
                         {motions.map((motion) => (
