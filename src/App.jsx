@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { Stage, useApp } from '@pixi/react'
 import { Live2DModel } from 'pixi-live2d-display-lipsyncpatch/cubism4'
 import * as PIXI from 'pixi.js'
+import SettingsDrawer from './components/SettingsDrawer'
 
 // 确保 PIXI 在全局可用
 if (typeof window !== 'undefined') {
@@ -9,7 +10,7 @@ if (typeof window !== 'undefined') {
 }
 
 // Live2D 组件，在 Stage 内部使用 useApp
-function Live2DComponent({ onModelLoad, onError }) {
+function Live2DComponent({ onModelLoad, onError, onModelReady }) {
   const app = useApp()
 
   useEffect(() => {
@@ -88,6 +89,7 @@ function Live2DComponent({ onModelLoad, onError }) {
         })
 
         onModelLoad(info)
+        onModelReady(model) // 传递模型实例给父组件
         console.log('✅ Live2D 模型加载成功')
 
       } catch (err) {
@@ -101,7 +103,7 @@ function Live2DComponent({ onModelLoad, onError }) {
     return () => {
       mounted = false
     }
-  }, [app, onModelLoad, onError])
+  }, [app, onModelLoad, onError, onModelReady])
 
   return null // 这个组件不渲染任何 JSX
 }
@@ -110,6 +112,8 @@ function App() {
   const [isLoading, setIsLoading] = useState(true)
   const [modelInfo, setModelInfo] = useState(null)
   const [error, setError] = useState(null)
+  const [model, setModel] = useState(null)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
   const handleModelLoad = useCallback((info) => {
     setModelInfo(info)
@@ -119,6 +123,11 @@ function App() {
   const handleError = useCallback((errorMessage) => {
     setError(errorMessage)
     setIsLoading(false)
+  }, [])
+
+  const handleModelReady = useCallback((modelInstance) => {
+    setModel(modelInstance)
+    console.log('🎭 模型实例已准备就绪，可以进行控制')
   }, [])
 
   if (error) {
@@ -153,7 +162,11 @@ function App() {
         }}
         className="absolute inset-0 w-full h-full cursor-pointer"
       >
-        <Live2DComponent onModelLoad={handleModelLoad} onError={handleError} />
+        <Live2DComponent
+          onModelLoad={handleModelLoad}
+          onError={handleError}
+          onModelReady={handleModelReady}
+        />
       </Stage>
 
       {/* 加载状态 */}
@@ -192,6 +205,13 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* 设置抽屉 */}
+      <SettingsDrawer
+        model={model}
+        isOpen={isDrawerOpen}
+        onOpenChange={setIsDrawerOpen}
+      />
     </div>
   )
 }
