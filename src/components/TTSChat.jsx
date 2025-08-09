@@ -134,13 +134,13 @@ export default function TTSChat({ model, app, wsUrl }) {
       </div>*/}
 
       {/* 控制条（置于右下，允许交互） */}
-      <div className="absolute right-4 bottom-4 flex gap-2 items-center pointer-events-auto bg-black/50 backdrop-blur px-3 py-2 rounded-xl">
-        <input className="bg-transparent border border-gray-600 rounded px-2 py-1 text-white w-64" value={text} onChange={(e)=>setText(e.target.value)} placeholder="输入要合成的文本" />
+      <div className="absolute left-1/2 -translate-x-1/2 bottom-4 flex gap-2 items-center pointer-events-auto bg-black/50 backdrop-blur px-3 py-2 rounded-xl">
+        <input className="bg-transparent bg-gray-900 rounded px-2 py-1 text-white w-64" value={text} onChange={(e)=>setText(e.target.value)} placeholder="输入要合成的文本" />
         <select className="bg-gray-800 text-white border border-gray-600 rounded px-2 py-1" value={mood} onChange={(e)=>setMood(e.target.value)}>
           {['neutral','happy','angry','sad','surprised','thinking'].map(m=> <option key={m} value={m}>{m}</option>)}
         </select>
         <label className="text-white text-xs flex items-center gap-1"><input type="checkbox" checked={muted} onChange={(e)=>setMuted(e.target.checked)} /> 静音</label>
-        <button onClick={handleSpeak} disabled={speaking} className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded">{speaking?'合成中…':'说话'}</button>
+        <button onClick={handleSpeak} disabled={speaking} className="bg-gray-800 hover:bg-gray-700 text-white px-3 py-1 rounded">{speaking?'合成中…':'说话'}</button>
         <button onClick={()=>{ close(); setSpeaking(false); try{(model.__director||model.__animDirector)?.speakStop?.()}catch{} }} className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded">停止</button>
       </div>
     </div>

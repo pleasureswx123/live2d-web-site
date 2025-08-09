@@ -53,6 +53,17 @@ function App() {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-gray-900">
+
+      <video
+        className="absolute inset-0 w-full h-full object-cover"
+        autoPlay
+        loop
+        muted
+        playsInline
+      >
+        <source src="/video/live2d_bg.mp4" type="video/mp4"/>
+      </video>
+
       <Live2DViewer
         modelPath="/models/youyou/youyou.model3.json"
         width={width}
@@ -63,7 +74,7 @@ function App() {
       />
 
       {currentModel && pixiApp && (
-        <TTSChat model={currentModel} app={pixiApp} wsUrl={"ws://localhost:8000/tts"} />
+        <TTSChat model={currentModel} app={pixiApp} wsUrl={"ws://localhost:8000/tts"}/>
       )}
 
       <SettingsDrawer
@@ -87,5 +98,4 @@ function App() {
     </div>
   )
 }
-
 export default App

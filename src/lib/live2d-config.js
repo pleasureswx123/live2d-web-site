@@ -34,7 +34,7 @@ export const LIVE2D_CONFIG = {
     width: window.innerWidth || 1920,
     height: window.innerHeight || 1080,
     backgroundColor: 0x1a1a1a, // 深色背景
-    backgroundAlpha: 1,
+    backgroundAlpha: 0,
     antialias: true,
     resolution: window.devicePixelRatio || 1,
     autoDensity: true,
@@ -181,11 +181,11 @@ export function getModelInfo(model) {
   if (!model || !model.internalModel) {
     return null
   }
-  
+
   const internal = model.internalModel
   const motionManager = internal.motionManager
   const expressionManager = motionManager?.expressionManager
-  
+
   return {
     name: internal.settings?.name || 'Unknown',
     size: {
