@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Live2DViewer from './components/Live2DViewer'
 import SettingsDrawer from './components/SettingsDrawer'
+// import TTSChat from './components/TTSChat'
 
 // 自适应窗口尺寸（含 dpr 改变时的刷新）
 function useViewport() {
@@ -60,6 +61,10 @@ function App() {
         onError={handleModelError}
         className="absolute inset-0"
       />
+
+      {/*{currentModel && pixiApp && (*/}
+      {/*  <TTSChat model={currentModel} app={pixiApp} wsUrl={"wss://localhost:8000/tts"} />*/}
+      {/*)}*/}
 
       <SettingsDrawer
         model={currentModel}
