@@ -12,9 +12,37 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/tts': {
+      '/ws': {
         target: 'http://localhost:8000',
         ws: true,
+        changeOrigin: true,
+      },
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/memory': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/upload': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/tts': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/control': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/proactive': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/status': {
+        target: 'http://localhost:8000',
         changeOrigin: true,
       },
     },

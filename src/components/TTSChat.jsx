@@ -4,10 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as PIXI from 'pixi.js'
 // 负责：创建/复用 AudioContext 与 Worklet、推送 PCM16、必要时做重采样，并提供 Analyser 供口型使用。
 import { usePCMWorkletPlayer } from '../hooks/usePCMWorkletPlayer'
-// 负责管理 WebSocket 连接、发送合成指令、接收 audio/subtitle/emotion/done，并抛给上层。
-import { useTTSStream } from '../hooks/useTTSStream'
+// 使用主WebSocket系统而不是独立连接
+import { useWebSocket, MESSAGE_TYPES } from '../hooks/useWebSocket'
+import { useChatStore } from '../stores/chatStore'
+import { useVoiceStore } from '../stores/voiceStore'
 
-export default function TTSChat({ model, app, wsUrl }) {
+export default function TTSChat({ model, app }) {
   const [text, setText] = useState('给我讲个笑话')
   const [mood, setMood] = useState('happy')
   const [muted, setMuted] = useState(false)
@@ -15,6 +17,11 @@ export default function TTSChat({ model, app, wsUrl }) {
   const [speaking, setSpeaking] = useState(false)
 
   const { analyser, pushPCM16, reset, setMuted: setPlayerMuted, ensureContext } = usePCMWorkletPlayer()
+
+  // 使用主WebSocket系统
+  const { sendMessage, isConnected } = useWebSocket()
+  const { currentUserId } = useChatStore()
+  const { tts } = useVoiceStore()
 
   // —— 口型：用 shared ticker 根据 analyser 输出 RMS 写 Live2D —— //
   // —— 口型：用 app.ticker，根据 analyser 输出 RMS 写 Live2D —— //
@@ -76,38 +83,41 @@ export default function TTSChat({ model, app, wsUrl }) {
     return { x: b.x + b.width / 2, y: Math.max(b.y, b.y + b.height * 0.1) }
   }
 
-  // —— WebSocket TTS —— //
-  const { start, close } = useTTSStream({
-    url: wsUrl,
-    onSubtitle: (m) => {
+  // —— 监听主WebSocket的TTS消息 —— //
+  useEffect(() => {
+    // 这些消息处理已经在useWebSocket中实现，这里只需要监听状态变化
+    // 当收到TTS音频数据时，会通过useTTSPlayer自动播放
+
+    // 监听TTS状态变化
+    if (tts.isSpeaking && !speaking) {
+      setSpeaking(true)
+      try { (model.__director || model.__animDirector)?.speakStart?.({ mood }) } catch {}
+    } else if (!tts.isSpeaking && speaking) {
+      setSpeaking(false)
+      try { (model.__director || model.__animDirector)?.speakStop?.() } catch {}
+    }
+  }, [tts.isSpeaking, speaking, model, mood])
+
+  // 监听生成的消息内容，更新气泡显示
+  useEffect(() => {
+    const { currentBotMessage, messages } = useChatStore.getState()
+
+    if (currentBotMessage) {
       setBubbles((prev) => {
-        // 更新最后一条助手气泡（partial），或添加
         const last = [...prev]
         const i = last.length - 1
         if (i >= 0 && last[i].role === 'assistant' && last[i].partial) {
-          last[i] = { ...last[i], text: m.text, partial: !m.final }
+          last[i] = { ...last[i], text: currentBotMessage, partial: true }
           return last
         }
-        return [...prev, { id: Date.now(), role: 'assistant', text: m.text, partial: !m.final }]
+        return [...prev, { id: Date.now(), role: 'assistant', text: currentBotMessage, partial: true }]
       })
-    },
-    onAudio: async (m) => {
-      // m = { type: 'audio', format:'pcm16', sampleRate, data: base64 }
-      if (m.format !== 'pcm16') return
-      await pushPCM16(m.data, m.sampleRate || 16000)
-    },
-    onEmotion: (m) => {
-      try { (model.__director || model.__animDirector)?.setMood?.(m.mood) } catch {}
-    },
-    onDone: () => {
-      setSpeaking(false)
-      try { (model.__director || model.__animDirector)?.speakStop?.() } catch {}
-    },
-    onError: (e) => console.error('TTS WS error', e),
-  })
+    }
+  }, [])
 
   async function handleSpeak() {
-    if (!model) return
+    if (!model || !isConnected || !currentUserId) return
+
     setBubbles((prev) => [...prev, { id: Date.now()-1, role: 'user', text, partial: false }])
     setBubbles((prev) => [...prev, { id: Date.now(), role: 'assistant', text: '…', partial: true }])
 
@@ -116,9 +126,13 @@ export default function TTSChat({ model, app, wsUrl }) {
     await reset()
     setPlayerMuted(!!muted)
     try { (model.__director || model.__animDirector)?.setMood?.(mood) } catch {}
-    try { (model.__director || model.__animDirector)?.speakStart?.({ mood }) } catch {}
 
-    start({ text, voice: 'female_1', emotion: mood })
+    // 通过主WebSocket发送消息
+    sendMessage({
+      type: MESSAGE_TYPES.MESSAGE,
+      content: text,
+      user_id: currentUserId
+    })
   }
 
   // —— UI —— //
