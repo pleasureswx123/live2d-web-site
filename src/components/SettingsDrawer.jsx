@@ -4,7 +4,9 @@ import { Settings, Smile, Play, Sliders, X, ChevronRight, RotateCcw, Volume2 } f
 import LipSyncPanel from './LipSyncPanel'
 import { MotionPriority } from 'pixi-live2d-display/cubism4'
 
-// 小工具
+// 认为“姿态类”的表情（会与手臂/手部动作冲突，先清再播）
+const EXCLUSIVE_EXP_RE = /(chayao|baoxiong|叉腰|抱胸|pose|姿态)/i
+
 const groupDisplayName = (g) => ({
   Idle: '待机动作',
   Sleep: '睡眠动作',
@@ -23,6 +25,7 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
   const [activeTab, setActiveTab] = useState('expressions')
   const [currentExpression, setCurrentExpression] = useState(null)     // string | null (Name)
   const [currentMotion, setCurrentMotion] = useState(null)             // {group, index} | null
+  const [exclusiveGuard, setExclusiveGuard] = useState(true)           // 防重叠开关（默认开）
 
   // 读 runtime settings（自动生成 UI）
   const runtime = useMemo(() => {
@@ -40,17 +43,74 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
     return Object.values(runtime.motions).reduce((sum, arr) => sum + (arr?.length || 0), 0)
   }, [runtime])
 
-  // === 表情 ===
+  // —— 强力“重置” —— //
+  const strongReset = async () => {
+    if (!model) return
+    try {
+      const mm = model.internalModel?.motionManager
+      // 1) 停掉所有动作
+      if (mm?.stopAllMotions) mm.stopAllMotions()
+      else if (mm?.stopAll) mm.stopAll()
+
+      // 2) 清表情（优先 expressionManager，其次便捷 API）
+      const em = mm?.expressionManager
+      try {
+        if (em?.setExpression) {
+          const ret = em.setExpression(null)
+          if (typeof ret?.then === 'function') await ret
+        } else if (typeof model.expression === 'function') {
+          const ret = model.expression(null)
+          if (typeof ret?.then === 'function') await ret
+        }
+      } catch {}
+
+      // 3) 关键参数兜底（防嘴/眼残留）
+      const core = model.internalModel?.coreModel
+      if (core) {
+        const set = (id, val) => {
+          try { core.setParameterValueById(id, val) } catch {}
+        }
+        set('ParamEyeLOpen', 1)
+        set('ParamEyeROpen', 1)
+        set('ParamMouthForm', 0)
+        set('ParamMouthOpenY', 0)
+        // 可按需再加：眉/脸红/身体角度等（不同模型未必都有，try-catch 即可）
+      }
+
+      // 4) 触发一次 Idle 将姿态拉回基线（若模型有 Idle 组）
+      if (runtime?.motions?.Idle?.length && typeof model.motion === 'function') {
+        try {
+          const ret = model.motion('Idle', 0, MotionPriority.FORCE)
+          if (typeof ret?.then === 'function') await ret
+        } catch {}
+      }
+
+      setCurrentExpression(null)
+      setCurrentMotion(null)
+      console.log('✅ 强力重置完成')
+    } catch (e) {
+      console.error('❌ 重置异常:', e)
+    }
+  }
+
+  // —— 表情 —— //
   const playExpression = async (name) => {
     if (!model || !runtime) return
     try {
-      // 优先便捷 API
+      // 如果是“姿态类表情”，开启防重叠时先停动作
+      if (exclusiveGuard && EXCLUSIVE_EXP_RE.test(name)) {
+        const mm = model.internalModel?.motionManager
+        if (mm?.stopAllMotions) mm.stopAllMotions()
+        else if (mm?.stopAll) mm.stopAll()
+        await new Promise(r => setTimeout(r, 50))
+        setCurrentMotion(null)
+      }
+
       let ok = false
       if (typeof model.expression === 'function') {
         const ret = model.expression(name) // 传 Name
         ok = typeof ret?.then === 'function' ? await ret : ret !== false
       }
-      // 兜底 expressionManager
       if (!ok && model.internalModel?.motionManager?.expressionManager) {
         const em = model.internalModel.motionManager.expressionManager
         if (typeof em.setExpression === 'function') {
@@ -70,10 +130,27 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
     }
   }
 
-  // === 动作 ===
+  // —— 动作 —— //
   const playMotion = async (group, index) => {
     if (!model || !runtime) return
     try {
+      // 若当前表情是“姿态类”，且开启防重叠：先清表情
+      if (exclusiveGuard && currentExpression && EXCLUSIVE_EXP_RE.test(currentExpression)) {
+        const mm = model.internalModel?.motionManager
+        const em = mm?.expressionManager
+        try {
+          if (em?.setExpression) {
+            const ret = em.setExpression(null)
+            if (typeof ret?.then === 'function') await ret
+          } else if (typeof model.expression === 'function') {
+            const ret = model.expression(null)
+            if (typeof ret?.then === 'function') await ret
+          }
+        } catch {}
+        await new Promise(r => setTimeout(r, 50))
+        setCurrentExpression(null)
+      }
+
       if (typeof model.motion !== 'function') {
         console.error('❌ 当前模型不支持 model.motion')
         return
@@ -91,46 +168,14 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
     }
   }
 
-  // === 重置（停动作 + 清表情 + 关键参数兜底）===
-  const resetAll = async () => {
-    if (!model) return
-    try {
-      const mm = model.internalModel?.motionManager
-      if (mm?.stopAllMotions) mm.stopAllMotions()
-      else if (mm?.stopAll) mm.stopAll()
-
-      const em = mm?.expressionManager
-      try {
-        if (em?.setExpression) {
-          const ret = em.setExpression(null)
-          if (typeof ret?.then === 'function') await ret
-        } else if (typeof model.expression === 'function') {
-          const ret = model.expression(null)
-          if (typeof ret?.then === 'function') await ret
-        }
-      } catch {}
-
-      const core = model.internalModel?.coreModel
-      if (core) {
-        try {
-          core.setParameterValueById('ParamEyeLOpen', 1)
-          core.setParameterValueById('ParamEyeROpen', 1)
-          core.setParameterValueById('ParamMouthForm', 0)
-          core.setParameterValueById('ParamMouthOpenY', 0)
-        } catch {}
-      }
-
-      setCurrentExpression(null)
-      setCurrentMotion(null)
-      console.log('✅ 已重置表情与动作')
-    } catch (e) {
-      console.error('❌ 重置异常:', e)
-    }
-  }
+  // —— UI —— //
+  const runtimeInfo = runtime
+    ? `表情 ${runtime.expressions.length || 0} • 动作 ${totalMotionCount} • 参数 ${runtime.parameters.length || 0}`
+    : '未加载模型'
 
   return (
     <>
-      {/* 触发按钮（可保留/也可移除，App 里已有一个的话可以删） */}
+      {/* 触发按钮（如果 App 里已有可移除） */}
       <button
         onClick={() => onOpenChange(true)}
         className="fixed top-4 right-4 z-50 bg-black/60 hover:bg-black/80 text-white p-3 rounded-full backdrop-blur-sm transition-all duration-200 hover:scale-110"
@@ -142,7 +187,7 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
       <Drawer.Root open={isOpen} onOpenChange={onOpenChange} direction="right">
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/0 z-40" />
-          <Drawer.Content className="bg-gray-900 text-white flex flex-col rounded-l-[10px] h-full w-[400px] mt-0 fixed bottom-0 right-0 z-50">
+          <Drawer.Content className="bg-gray-900 text-white flex flex-col rounded-l-[10px] h-full w-[420px] mt-0 fixed bottom-0 right-0 z-50">
             {/* 头部 */}
             <div className="p-4 border-b border-gray-700 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -177,19 +222,28 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
 
             {/* 内容 */}
             <div className="flex-1 overflow-y-auto p-4">
-              {/* 表情 */}
               {activeTab === 'expressions' && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-medium">表情控制</h3>
-                    <button onClick={resetAll} className="flex items-center gap-1 px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm">
-                      <RotateCcw size={14} /> 重置
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-gray-300 flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={exclusiveGuard}
+                          onChange={(e) => setExclusiveGuard(e.target.checked)}
+                        />
+                        防重叠
+                      </label>
+                      <button onClick={strongReset} className="flex items-center gap-1 px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm">
+                        <RotateCcw size={14} /> 重置
+                      </button>
+                    </div>
                   </div>
 
                   {currentExpression && (
-                    <div className="p-3 bg-blue-600/20 border border-blue-500 rounded-lg">
-                      <p className="text-sm text-blue-200">当前表情：{currentExpression}</p>
+                    <div className="p-3 bg-blue-600/20 border border-blue-500 rounded-lg text-sm text-blue-200">
+                      当前表情：{currentExpression}
                     </div>
                   )}
 
@@ -216,10 +270,14 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
                 </div>
               )}
 
-              {/* 动作 */}
               {activeTab === 'motions' && (
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium">动作控制</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium">动作控制</h3>
+                    <button onClick={strongReset} className="flex items-center gap-1 px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm">
+                      <RotateCcw size={14} /> 重置
+                    </button>
+                  </div>
 
                   {!runtime || !Object.keys(runtime.motions).length ? (
                     <div className="text-sm text-gray-400">当前模型没有提供 Motions。</div>
@@ -258,12 +316,10 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
                 </div>
               )}
 
-              {/* 口型 */}
               {activeTab === 'lipsync' && (
                 <LipSyncPanel model={model} isModelLoaded={!!model} />
               )}
 
-              {/* 参数（占位） */}
               {activeTab === 'parameters' && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">参数调节</h3>
@@ -276,12 +332,9 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
               )}
             </div>
 
-            {/* 底部信息 */}
             <div className="p-4 border-t border-gray-700 bg-gray-800">
               <div className="text-xs text-gray-400 text-center">
-                {runtime
-                  ? `表情 ${runtime.expressions.length || 0} • 动作 ${totalMotionCount} • 参数 ${runtime.parameters.length || 0}`
-                  : '未加载模型'}
+                {runtime ? `表情 ${runtime.expressions.length || 0} • 动作 ${totalMotionCount} • 参数 ${runtime.parameters.length || 0}` : '未加载模型'}
               </div>
             </div>
           </Drawer.Content>
