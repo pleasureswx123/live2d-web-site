@@ -1,6 +1,6 @@
 /**
  * Live2D 配置和初始化
- * 基于 pixi-live2d-display 官方 API 的配置系统
+ * 基于 pixi-live2d-display v0.4.0 官方 API 的配置系统
  * 文档: https://guansss.github.io/pixi-live2d-display/
  * API: https://guansss.github.io/pixi-live2d-display/api/
  */
@@ -16,7 +16,7 @@ if (typeof window !== 'undefined') {
   Live2DModel.registerTicker(PIXI.Ticker)
 }
 
-// Live2D 配置选项 - 基于官方 API 最佳实践
+// Live2D 配置选项 - 基于 v0.4.0 API 最佳实践
 export const LIVE2D_CONFIG = {
   // 模型配置
   models: {
@@ -42,13 +42,10 @@ export const LIVE2D_CONFIG = {
     clearBeforeRender: true
   },
 
-  // 交互配置 - 基于官方 API
-  interaction: {
+  // 模型选项 - 基于 v0.4.0 API
+  modelOptions: {
     autoInteract: true, // 启用自动交互
     autoUpdate: true,   // 启用自动更新
-    enableHitTest: true, // 启用点击测试
-    enableFocus: true,   // 启用焦点跟踪
-    hitTestSensitivity: 1.0 // 点击灵敏度
   },
 
   // 动画配置
@@ -62,7 +59,7 @@ export const LIVE2D_CONFIG = {
 }
 
 /**
- * 初始化 Live2D 环境 - 基于官方 API 最佳实践
+ * 初始化 Live2D 环境 - 基于 v0.4.0 API 最佳实践
  */
 export function initializeLive2D() {
   console.log('🎭 初始化 Live2D 环境...')
@@ -85,10 +82,13 @@ export function initializeLive2D() {
   PIXI.settings.ROUND_PIXELS = true // 像素对齐，提升渲染质量
   PIXI.settings.RESOLUTION = window.devicePixelRatio || 1
 
-  // 确保 Ticker 已注册
-  if (!Live2DModel.ticker) {
-    Live2DModel.registerTicker(PIXI.Ticker)
+  // 修复 shader 相关问题
+  if (PIXI.settings.SPRITE_MAX_TEXTURES === 0) {
+    PIXI.settings.SPRITE_MAX_TEXTURES = 16
   }
+
+  // 确保 Ticker 已注册
+  Live2DModel.registerTicker(PIXI.Ticker)
 
   console.log('✅ Live2D 环境初始化完成')
   console.log('📦 PIXI 版本:', PIXI.VERSION)
@@ -126,35 +126,20 @@ export function createPixiApp(canvas, options = {}) {
 }
 
 /**
- * 加载 Live2D 模型 - 基于官方 API
+ * 加载 Live2D 模型 - 基于 v0.4.0 API
  */
 export async function loadLive2DModel(modelPath, options = {}) {
   try {
     console.log('📥 开始加载模型:', modelPath)
 
-    // 使用官方 API 加载模型
+    // 使用 v0.4.0 API 加载模型
     const model = await Live2DModel.from(modelPath, {
-      autoInteract: LIVE2D_CONFIG.interaction.autoInteract,
-      autoUpdate: LIVE2D_CONFIG.interaction.autoUpdate,
+      ...LIVE2D_CONFIG.modelOptions,
       ...options
     })
 
-    // 等待模型完全加载
-    if (!model.internalModel) {
-      await new Promise((resolve) => {
-        model.once('ready', resolve)
-      })
-    }
-
-    console.log('✅ 模型加载成功:', {
-      name: model.internalModel?.settings?.name || 'Unknown',
-      width: model.width,
-      height: model.height,
-      expressions: model.internalModel?.motionManager?.expressionManager?.definitions?.length || 0,
-      motions: Object.keys(model.internalModel?.motionManager?.definitions || {}).length,
-      autoInteract: model.autoInteract,
-      autoUpdate: model.autoUpdate
-    })
+    // 模型加载完成后会自动触发 ready 事件
+    console.log('✅ 模型加载成功:', model.tag)
 
     return model
   } catch (error) {
@@ -164,49 +149,26 @@ export async function loadLive2DModel(modelPath, options = {}) {
 }
 
 /**
- * 配置模型交互 - 基于官方 API 的完整配置
+ * 配置模型交互 - 基于 v0.4.0 API 的完整配置
  */
 export function setupModelInteraction(model, options = {}) {
-  const config = { ...LIVE2D_CONFIG.interaction, ...LIVE2D_CONFIG.animation, ...options }
-
-  // 启用自动交互 (官方 API)
-  if (config.autoInteract) {
-    model.autoInteract = true
-    console.log('🎮 自动交互已启用')
-  }
-
-  // 启用自动更新 (官方 API)
-  if (config.autoUpdate) {
-    model.autoUpdate = true
-    console.log('🔄 自动更新已启用')
-  }
+  const config = { ...LIVE2D_CONFIG.modelOptions, ...options }
 
   // 配置点击事件
-  if (config.enableHitTest) {
-    model.on('hit', (hitAreas) => {
-      console.log('🎯 模型被点击:', hitAreas)
+  model.on('hit', (hitAreas) => {
+    console.log('🎯 模型被点击:', hitAreas)
 
-      // 根据点击区域播放相应动作
-      if (hitAreas.includes('body')) {
-        model.motion('TapBody', Math.floor(Math.random() * 3), 3)
-      } else if (hitAreas.includes('head')) {
-        model.motion('TapHead', Math.floor(Math.random() * 2), 3)
-      }
-    })
-  }
-
-  // 配置焦点跟踪
-  if (config.enableFocus) {
-    model.on('focus', (x, y) => {
-      console.log('👁️ 焦点变化:', { x, y })
-    })
-  }
+    // 根据点击区域播放相应动作
+    if (hitAreas.includes('body')) {
+      model.motion('TapBody', Math.floor(Math.random() * 3))
+    } else if (hitAreas.includes('head')) {
+      model.motion('TapHead', Math.floor(Math.random() * 2))
+    }
+  })
 
   console.log('🎮 模型交互配置完成:', {
     autoInteract: model.autoInteract,
-    autoUpdate: model.autoUpdate,
-    hitTest: config.enableHitTest,
-    focus: config.enableFocus
+    autoUpdate: model.autoUpdate
   })
 
   return model

@@ -12,19 +12,8 @@ import {
 } from 'lucide-react'
 import LipSyncPanel from './LipSyncPanel'
 
-// 尝试导入 MotionPriority，如果失败则使用数字常量
-let MotionPriority
-try {
-  MotionPriority = require('pixi-live2d-display-lipsyncpatch').MotionPriority
-} catch (error) {
-  // 如果导入失败，使用数字常量
-  MotionPriority = {
-    NONE: 0,
-    IDLE: 1,
-    NORMAL: 2,
-    FORCE: 3
-  }
-}
+// 使用 v0.4.0 API 的 MotionPriority
+import { MotionPriority } from 'pixi-live2d-display/cubism4'
 
 // 智能冲突检测系统
 const CONFLICT_RULES = {
