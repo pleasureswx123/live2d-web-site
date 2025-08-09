@@ -17,30 +17,56 @@ export default function TTSChat({ model, app, wsUrl }) {
   const { analyser, pushPCM16, reset, setMuted: setPlayerMuted, ensureContext } = usePCMWorkletPlayer()
 
   // —— 口型：用 shared ticker 根据 analyser 输出 RMS 写 Live2D —— //
+  // —— 口型：用 app.ticker，根据 analyser 输出 RMS 写 Live2D —— //
   useEffect(() => {
-    if (!model || !analyser.current) return
-    const ATT_MS = 60, REL_MS = 120, THRESH = 0.02
-    let level = 0
-    const buf = new Float32Array(512)
-    const tick = () => {
-      const an = analyser.current
-      if (!an || !model?.internalModel?.coreModel) return
-      an.getFloatTimeDomainData(buf)
-      let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i]
-      let target = Math.max(0, Math.sqrt(sum / buf.length) * 6 - THRESH)
-      target = Math.min(1, target / (1 - THRESH))
-      const dt = PIXI.Ticker.shared.deltaMS
-      const tau = target > level ? ATT_MS : REL_MS
-      const k = 1 - Math.exp(-dt / Math.max(1, tau))
-      level += (target - level) * k
-      const core = model.internalModel.coreModel
-      const L = Math.max(0, Math.min(1, level))
-      try { core.setParameterValueById('ParamMouthOpenY', Math.min(1, L * 1.6)) } catch {}
-      try { core.setParameterValueById('ParamMouthForm', Math.min(1, L * 1.0)) } catch {}
+    if (!model || !app) return
+    let removed = false
+    let tick = null
+
+    ;(async () => {
+      // 确保 AudioContext & Worklet & Analyser 创建完成
+      try {
+        await ensureContext()
+        await reset()         // 会触发 usePCMWorkletPlayer 内部的 ensureWorklet()
+      } catch (e) {
+        console.error('准备口型驱动失败:', e)
+        return
+      }
+
+      const ATT_MS = 60, REL_MS = 120, THRESH = 0.02
+      let level = 0
+      const buf = new Float32Array(512)
+
+      tick = () => {
+        const an = analyser.current
+        const core = model?.internalModel?.coreModel
+        if (!an || !core) return
+
+        an.getFloatTimeDomainData(buf)
+        let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i]
+        let target = Math.max(0, Math.sqrt(sum / buf.length) * 6 - THRESH)
+        target = Math.min(1, target / (1 - THRESH))
+
+        const dt = app.ticker.deltaMS || 16.7
+        const tau = target > level ? ATT_MS : REL_MS
+        const k = 1 - Math.exp(-dt / Math.max(1, tau))
+        level += (target - level) * k
+
+        const L = Math.max(0, Math.min(1, level))
+        try { core.setParameterValueById('ParamMouthOpenY', Math.min(1, L * 1.6)) } catch {}
+        try { core.setParameterValueById('ParamMouthForm', Math.min(1, L * 1.0)) } catch {}
+      }
+
+      // 用 app.ticker 确保一定在跑
+      app.ticker.add(tick)
+    })()
+
+    return () => {
+      if (!removed && tick) app.ticker.remove(tick)
+      removed = true
     }
-    PIXI.Ticker.shared.add(tick)
-    return () => PIXI.Ticker.shared.remove(tick)
-  }, [model, analyser])
+  }, [model, app])  // 注意：不再依赖 analyser；我们在内部确保它创建
+
 
   // —— 气泡定位（简单地锚在模型上方） —— //
   function getHeadAnchor() {
@@ -101,11 +127,11 @@ export default function TTSChat({ model, app, wsUrl }) {
   return (
     <div className="absolute inset-0 pointer-events-none select-none">
       {/* 气泡层 */}
-      <div className="absolute" style={{ left: anchor.x, top: anchor.y - 40, transform: 'translate(-50%, -100%)', maxWidth: 320 }}>
+      {/*<div className="absolute" style={{ left: anchor.x, top: anchor.y - 40, transform: 'translate(-50%, -100%)', maxWidth: 320 }}>
         {bubbles.slice(-3).map((b) => (
           <div key={b.id} className={`mb-2 px-3 py-2 rounded-2xl shadow pointer-events-auto ${b.role==='user' ? 'bg-emerald-600 text-white self-end' : 'bg-gray-800/90 text-white'} ${b.partial ? 'animate-pulse' : ''}`}>{b.text}</div>
         ))}
-      </div>
+      </div>*/}
 
       {/* 控制条（置于右下，允许交互） */}
       <div className="absolute right-4 bottom-4 flex gap-2 items-center pointer-events-auto bg-black/50 backdrop-blur px-3 py-2 rounded-xl">

@@ -10,4 +10,13 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    proxy: {
+      '/tts': {
+        target: 'http://localhost:8000',
+        ws: true,
+        changeOrigin: true,
+      },
+    },
+  },
 })
