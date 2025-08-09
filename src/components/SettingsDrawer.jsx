@@ -142,7 +142,7 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
     }
 
     try {
-      console.log('🎭 尝试播放表情:', expressionId)
+      await model.motion('TapBody', 0, MotionPriority.FORCE)
 
       // 🔍 智能冲突检测：检查当前播放的动作是否与表情冲突
       const currentMotionKey = getCurrentMotion()
@@ -234,6 +234,7 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
     }
 
     try {
+      await model.expression();
       console.log('🎬 尝试播放动作:', group, motionId)
 
       // 🔍 智能冲突检测：检查当前表情是否与动作冲突
@@ -319,17 +320,17 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
     }
   }
 
-  // 重置表情和动作
-  const resetExpression = () => {
+  // 重置表情和动作 - 增强版
+  const resetExpression = async () => {
     if (!model) {
       console.error('❌ 模型实例不存在')
       return
     }
 
     try {
-      console.log('🔄 尝试重置表情和动作')
+      console.log('🔄 开始强力重置表情和动作')
 
-      // 停止所有动作
+      // 1. 停止所有动作
       if (model.internalModel?.motionManager) {
         const motionManager = model.internalModel.motionManager
         if (typeof motionManager.stopAllMotions === 'function') {
@@ -338,18 +339,85 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
         }
       }
 
-      // 重置表情
+      // 2. 重置表情 - 使用多种方法确保重置成功
+      let resetSuccess = false
+
+      // 方法1: 使用标准 expression API
       if (typeof model.expression === 'function') {
-        const result = model.expression(null)
-        console.log('🔄 表情重置结果:', result)
-        setCurrentExpression(null)
-        setCurrentMotion(null) // 清除动作状态
-        console.log('✅ 表情和动作重置成功')
-      } else {
-        console.error('❌ 模型不支持 expression 方法')
+        try {
+          const result = model.expression(null)
+          if (result && typeof result.then === 'function') {
+            await result
+            console.log('🔄 表情重置Promise已完成')
+          }
+          resetSuccess = true
+          console.log('✅ 标准API表情重置成功')
+        } catch (error) {
+          console.warn('⚠️ 标准API重置失败:', error)
+        }
       }
+
+      // 方法2: 直接使用 expressionManager
+      if (model.internalModel?.motionManager?.expressionManager) {
+        try {
+          const expressionManager = model.internalModel.motionManager.expressionManager
+          if (typeof expressionManager.setExpression === 'function') {
+            const result = expressionManager.setExpression(null)
+            if (result && typeof result.then === 'function') {
+              await result
+              console.log('🔄 ExpressionManager重置Promise已完成')
+            }
+            resetSuccess = true
+            console.log('✅ ExpressionManager重置成功')
+          }
+        } catch (error) {
+          console.warn('⚠️ ExpressionManager重置失败:', error)
+        }
+      }
+
+      // 3. 强制重置关键参数到默认状态
+      if (model.internalModel?.coreModel) {
+        try {
+          const coreModel = model.internalModel.coreModel
+
+          // 重置眼部参数
+          coreModel.setParameterValueById('ParamEyeLOpen', 1)
+          coreModel.setParameterValueById('ParamEyeROpen', 1)
+
+          // 重置嘴部参数
+          coreModel.setParameterValueById('ParamMouthForm', 0)
+          coreModel.setParameterValueById('ParamMouthOpenY', 0)
+
+          // 重置眉毛参数
+          try {
+            coreModel.setParameterValueById('ParamBrowLY', 0)
+            coreModel.setParameterValueById('ParamBrowRY', 0)
+          } catch (e) {
+            // 某些参数可能不存在，忽略错误
+          }
+
+          console.log('✅ 关键参数已强制重置')
+          resetSuccess = true
+        } catch (error) {
+          console.warn('⚠️ 参数重置失败:', error)
+        }
+      }
+
+      // 4. 等待一段时间确保重置生效
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // 5. 更新UI状态
+      setCurrentExpression(null)
+      setCurrentMotion(null)
+
+      if (resetSuccess) {
+        console.log('✅ 表情和动作完全重置成功')
+      } else {
+        console.warn('⚠️ 重置可能不完整，请检查模型状态')
+      }
+
     } catch (error) {
-      console.error('❌ 重置失败:', error)
+      console.error('❌ 重置过程中发生错误:', error)
     }
   }
 
@@ -371,7 +439,7 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
         direction="right"
       >
         <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
+          <Drawer.Overlay className="fixed inset-0 bg-black/0 z-40" />
           <Drawer.Content className="bg-gray-900 text-white flex flex-col rounded-l-[10px] h-full w-[400px] mt-0 fixed bottom-0 right-0 z-50">
             {/* 抽屉头部 */}
             <div className="p-4 border-b border-gray-700 flex items-center justify-between">
