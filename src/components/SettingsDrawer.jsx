@@ -1,584 +1,269 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Drawer } from 'vaul'
-import {
-  Settings,
-  Smile,
-  Play,
-  Sliders,
-  X,
-  ChevronRight,
-  RotateCcw,
-  Volume2
-} from 'lucide-react'
+import { Settings, Smile, Play, Sliders, X, ChevronRight, RotateCcw, Volume2 } from 'lucide-react'
 import LipSyncPanel from './LipSyncPanel'
-
-// 使用 v0.4.0 API 的 MotionPriority
 import { MotionPriority } from 'pixi-live2d-display/cubism4'
 
-// 智能冲突检测系统
-const CONFLICT_RULES = {
-  // 表情和动作的冲突规则
-  expressions: {
-    // 涉及手臂/手部的表情
-    'baoxiong': ['arm', 'hand'], // 抱胸 - 影响手臂
-    'chayao': ['arm', 'hand'],   // 叉腰 - 影响手臂和手部
-  },
-  motions: {
-    // 涉及手臂/手部的动作
-    'huishou': ['arm', 'hand'],     // 挥手 - 影响手臂和手部
-    'diantou': ['head'],            // 点头 - 只影响头部
-    'yaotou': ['head'],             // 摇头 - 只影响头部
-    'yanzhuzi': ['eye'],            // 眼珠子 - 只影响眼部
-    'shuijiao': ['eye', 'body'],    // 睡觉 - 影响眼部和身体
-    'sleep': ['eye', 'body'],       // 睡眠 - 影响眼部和身体
-    'jichudonghua': ['body']        // 基础动画 - 影响身体
-  }
-}
+// 小工具
+const groupDisplayName = (g) => ({
+  Idle: '待机动作',
+  Sleep: '睡眠动作',
+  TapBody: '身体交互',
+  TapHead: '头部交互',
+}[g] || g)
 
-// 检查表情和动作是否冲突
-const checkConflict = (expressionId, motionId) => {
-  if (!expressionId || !motionId) return false
-
-  const expressionParts = CONFLICT_RULES.expressions[expressionId] || []
-  const motionParts = CONFLICT_RULES.motions[motionId] || []
-
-  // 检查是否有共同的身体部位
-  const hasConflict = expressionParts.some(part => motionParts.includes(part))
-
-  if (hasConflict) {
-    console.log(`⚠️ 检测到冲突: 表情 "${expressionId}" 和动作 "${motionId}" 都影响: ${expressionParts.filter(part => motionParts.includes(part)).join(', ')}`)
-  }
-
-  return hasConflict
-}
-
-// 表情列表 - 基于 youyou.model3.json
-const EXPRESSIONS = [
-  { id: 'aojiao', name: '傲娇', emoji: '😤' },
-  { id: 'chayao', name: '叉腰', emoji: '🙄' },
-  { id: 'hahadaxiao', name: '哈哈大笑', emoji: '😂' },
-  { id: 'weiqu', name: '委屈', emoji: '🥺' },
-  { id: 'haixiu', name: '害羞', emoji: '😊' },
-  { id: 'jingxi', name: '惊喜', emoji: '😮' },
-  { id: 'jingya', name: '惊讶', emoji: '😲' },
-  { id: 'tuosai', name: '托腮', emoji: '🤔' },
-  { id: 'baoxiong', name: '抱胸', emoji: '😏' },
-  { id: 'huishou', name: '挥手', emoji: '👋' },
-  { id: 'wenroudexiao', name: '温柔的笑', emoji: '😌' },
-  { id: 'shengqi', name: '生气', emoji: '😠' },
-  { id: 'diannao', name: '电脑', emoji: '💻' },
-  { id: 'diannaofaguang', name: '电脑发光', emoji: '✨' },
-  { id: 'mimiyan', name: '眯眯眼', emoji: '😊' },
-  { id: 'yanlei', name: '眼泪', emoji: '😢' },
-  { id: 'lianhong', name: '脸红', emoji: '😳' },
-  { id: 'luolei', name: '落泪', emoji: '😭' },
-  { id: 'jianpantaiqi', name: '键盘抬起', emoji: '⌨️' },
-  { id: 'guilian', name: '鬼脸', emoji: '😜' }
-]
-
-// 动作列表 - 按照 Cubism 4 标准分组结构组织
-const MOTIONS = {
-  'Idle': [
-    { id: 0, name: '基础动画', icon: '🌟', file: 'jichudonghua.motion3.json', key: 'jichudonghua' }
-  ],
-  'Sleep': [
-    { id: 0, name: '睡觉', icon: '😴', file: 'shuijiao.motion3.json', key: 'shuijiao' },
-    { id: 1, name: '睡眠', icon: '💤', file: 'sleep.motion3.json', key: 'sleep' }
-  ],
-  'TapBody': [
-    { id: 0, name: '点头', icon: '👍', file: 'diantou.motion3.json', key: 'diantou' },
-    { id: 1, name: '挥手', icon: '👋', file: 'huishou.motion3.json', key: 'huishou' },
-    { id: 2, name: '摇头', icon: '🙅', file: 'yaotou.motion3.json', key: 'yaotou' }
-  ],
-  'TapHead': [
-    { id: 0, name: '眼珠子', icon: '👀', file: 'yanzhuzi.motion3.json', key: 'yanzhuzi' }
-  ]
-}
-
-// 动作分组名称映射 (Cubism 4 标准)
-const getGroupDisplayName = (group) => {
-  const groupNames = {
-    'Idle': '待机动作',
-    'Sleep': '睡眠动作',
-    'TapBody': '身体交互',
-    'TapHead': '头部交互'
-  }
-  return groupNames[group] || group || '默认动作'
-}
-
-// 根据动作索引获取动作键名
-const getMotionKey = (motionId) => {
-  const allMotions = Object.values(MOTIONS).flat()
-  const motion = allMotions.find(m => m.id === motionId)
-  return motion ? motion.key : null
+const baseName = (p) => {
+  if (!p) return ''
+  const s = String(p)
+  const i = s.lastIndexOf('/')
+  return i >= 0 ? s.slice(i + 1) : s
 }
 
 function SettingsDrawer({ model, isOpen, onOpenChange }) {
   const [activeTab, setActiveTab] = useState('expressions')
-  const [currentExpression, setCurrentExpression] = useState(null)
-  const [currentMotion, setCurrentMotion] = useState(null)
+  const [currentExpression, setCurrentExpression] = useState(null)     // string | null (Name)
+  const [currentMotion, setCurrentMotion] = useState(null)             // {group, index} | null
 
-  // 获取当前播放的动作
-  const getCurrentMotion = () => {
-    return currentMotion
-  }
+  // 读 runtime settings（自动生成 UI）
+  const runtime = useMemo(() => {
+    if (!model) return null
+    const s = model.internalModel?.settings
+    return s ? {
+      motions: s.motions || {},                // { group: [{File,...}, ...] }
+      expressions: s.expressions || [],        // [{Name, File}]
+      parameters: s.parameters || [],
+    } : null
+  }, [model])
 
-  // 播放表情
-  const playExpression = async (expressionId) => {
-    if (!model) {
-      console.error('❌ 模型实例不存在')
-      return
-    }
+  const totalMotionCount = useMemo(() => {
+    if (!runtime) return 0
+    return Object.values(runtime.motions).reduce((sum, arr) => sum + (arr?.length || 0), 0)
+  }, [runtime])
 
+  // === 表情 ===
+  const playExpression = async (name) => {
+    if (!model || !runtime) return
     try {
-      await model.motion('TapBody', 0, MotionPriority.FORCE)
-
-      // 🔍 智能冲突检测：检查当前播放的动作是否与表情冲突
-      const currentMotionKey = getCurrentMotion()
-      if (currentMotionKey && checkConflict(expressionId, currentMotionKey)) {
-        console.log('⚠️ 检测到表情与动作冲突，强制停止当前动作')
-
-        // 强制停止动作并等待完成
-        try {
-          if (model.internalModel?.motionManager) {
-            const motionManager = model.internalModel.motionManager
-            if (typeof motionManager.stopAllMotions === 'function') {
-              motionManager.stopAllMotions()
-              console.log('🛑 已停止所有动作')
-            }
-
-            // 等待动作停止生效
-            await new Promise(resolve => setTimeout(resolve, 100))
-            console.log('⏱️ 已等待动作停止生效')
-          }
-
-          setCurrentMotion(null)
-        } catch (error) {
-          console.error('❌ 动作停止失败:', error)
-        }
-      } else if (currentMotionKey) {
-        console.log('✅ 表情与当前动作无冲突，可以同时播放')
-      }
-
-      // 尝试多种表情播放方式
-      let success = false
-
-      // 方式1: 使用标准的 expression 方法
+      // 优先便捷 API
+      let ok = false
       if (typeof model.expression === 'function') {
-        console.log('🎭 使用 model.expression() 方法')
-        const result = model.expression(expressionId)
-        console.log('🎭 表情播放结果:', result)
-
-        // 如果返回的是 Promise，等待它完成
-        if (result && typeof result.then === 'function') {
-          try {
-            success = await result
-            console.log('🎭 Promise 解析结果:', success)
-          } catch (error) {
-            console.error('🎭 Promise 解析失败:', error)
-            success = false
-          }
-        } else {
-          success = result !== false
-          console.log('🎭 同步结果:', success)
+        const ret = model.expression(name) // 传 Name
+        ok = typeof ret?.then === 'function' ? await ret : ret !== false
+      }
+      // 兜底 expressionManager
+      if (!ok && model.internalModel?.motionManager?.expressionManager) {
+        const em = model.internalModel.motionManager.expressionManager
+        if (typeof em.setExpression === 'function') {
+          const ret = em.setExpression(name)
+          ok = typeof ret?.then === 'function' ? await ret : ret !== false
         }
       }
 
-      // 方式2: 如果标准方法失败，尝试使用内部 API
-      if (!success && model.internalModel?.motionManager?.expressionManager) {
-        console.log('🎭 使用内部 expressionManager')
-        const expressionManager = model.internalModel.motionManager.expressionManager
-
-        // 尝试多种内部方法
-        if (typeof expressionManager.setExpression === 'function') {
-          console.log('🎭 尝试 setExpression')
-          const result = expressionManager.setExpression(expressionId)
-          console.log('🎭 setExpression 结果:', result)
-          success = result !== false
-        } else if (typeof expressionManager.startMotion === 'function') {
-          console.log('🎭 尝试 startMotion')
-          const result = expressionManager.startMotion(expressionId, false, 2)
-          console.log('🎭 startMotion 结果:', result)
-          success = result !== false
-        }
-      }
-
-      if (success) {
-        setCurrentExpression(expressionId)
-        console.log('✅ 表情播放成功:', expressionId)
+      if (ok) {
+        setCurrentExpression(name)
+        console.log('✅ 表情播放:', name)
       } else {
-        console.warn('⚠️ 表情播放失败，可能表情不存在:', expressionId)
+        console.warn('⚠️ 表情未找到/未生效:', name)
       }
-
-    } catch (error) {
-      console.error('❌ 表情播放失败:', error)
+    } catch (e) {
+      console.error('❌ 表情播放异常:', e)
     }
   }
 
-  // 播放动作
-  const playMotion = async (group, motionId) => {
-    if (!model) {
-      console.error('❌ 模型实例不存在')
-      return
-    }
-
+  // === 动作 ===
+  const playMotion = async (group, index) => {
+    if (!model || !runtime) return
     try {
-      await model.expression();
-      console.log('🎬 尝试播放动作:', group, motionId)
-
-      // 🔍 智能冲突检测：检查当前表情是否与动作冲突
-      const motionKey = getMotionKey(motionId)
-      if (currentExpression && motionKey && checkConflict(currentExpression, motionKey)) {
-        console.log('⚠️ 检测到动作与表情冲突，强制重置表情')
-
-        // 强制重置表情并等待完成
-        try {
-          if (model.internalModel?.motionManager?.expressionManager) {
-            const expressionManager = model.internalModel.motionManager.expressionManager
-            if (typeof expressionManager.setExpression === 'function') {
-              const resetResult = expressionManager.setExpression(null)
-              if (resetResult && typeof resetResult.then === 'function') {
-                await resetResult
-                console.log('🛑 已等待表情重置完成（Promise）')
-              } else {
-                console.log('🛑 已重置表情（同步）')
-              }
-            }
-          } else if (typeof model.expression === 'function') {
-            const resetResult = model.expression(null)
-            if (resetResult && typeof resetResult.then === 'function') {
-              await resetResult
-              console.log('🛑 已等待标准 API 表情重置完成')
-            } else {
-              console.log('🛑 已使用标准 API 重置表情（同步）')
-            }
-          }
-
-          // 额外等待一帧确保重置生效
-          await new Promise(resolve => setTimeout(resolve, 50))
-          console.log('⏱️ 已等待额外时间确保表情重置生效')
-
-          setCurrentExpression(null)
-        } catch (error) {
-          console.error('❌ 表情重置失败:', error)
-        }
-      } else if (currentExpression) {
-        console.log('✅ 动作与当前表情无冲突，可以同时播放')
+      if (typeof model.motion !== 'function') {
+        console.error('❌ 当前模型不支持 model.motion')
+        return
       }
-
-      // 使用标准的 pixi-live2d-display API
-      if (typeof model.motion === 'function') {
-        // 使用 FORCE 优先级来避免动作重叠
-        // 根据官方文档：FORCE 优先级确保动作立即播放，覆盖当前动作
-        const result = model.motion(group, motionId, MotionPriority.FORCE)
-        console.log('🎬 动作播放结果:', result)
-
-        // 如果返回的是 Promise，等待它完成
-        if (result && typeof result.then === 'function') {
-          const success = await result
-          if (success !== false) {
-            console.log('✅ 动作播放成功:', group, motionId)
-            // 设置当前动作状态
-            setCurrentMotion(motionId)
-            // 只有在冲突时才清除表情状态
-            if (currentExpression && motionKey && checkConflict(currentExpression, motionKey)) {
-              setCurrentExpression(null)
-            }
-          } else {
-            console.warn('⚠️ 动作播放失败，可能动作不存在:', group, motionId)
-          }
-        } else {
-          // 同步结果
-          if (result !== false) {
-            console.log('✅ 动作播放成功:', group, motionId)
-            // 设置当前动作状态
-            setCurrentMotion(motionId)
-            // 只有在冲突时才清除表情状态
-            if (currentExpression && motionKey && checkConflict(currentExpression, motionKey)) {
-              setCurrentExpression(null)
-            }
-          } else {
-            console.warn('⚠️ 动作播放返回 false，可能动作不存在:', group, motionId)
-          }
-        }
+      const ret = model.motion(group, index, MotionPriority.FORCE)
+      const ok = typeof ret?.then === 'function' ? await ret : ret !== false
+      if (ok) {
+        setCurrentMotion({ group, index })
+        console.log('✅ 动作播放:', group, index)
       } else {
-        console.error('❌ 模型不支持 motion 方法')
+        console.warn('⚠️ 动作播放失败:', group, index)
       }
-    } catch (error) {
-      console.error('❌ 动作播放失败:', error)
+    } catch (e) {
+      console.error('❌ 动作播放异常:', e)
     }
   }
 
-  // 重置表情和动作 - 增强版
-  const resetExpression = async () => {
-    if (!model) {
-      console.error('❌ 模型实例不存在')
-      return
-    }
-
+  // === 重置（停动作 + 清表情 + 关键参数兜底）===
+  const resetAll = async () => {
+    if (!model) return
     try {
-      console.log('🔄 开始强力重置表情和动作')
+      const mm = model.internalModel?.motionManager
+      if (mm?.stopAllMotions) mm.stopAllMotions()
+      else if (mm?.stopAll) mm.stopAll()
 
-      // 1. 停止所有动作
-      if (model.internalModel?.motionManager) {
-        const motionManager = model.internalModel.motionManager
-        if (typeof motionManager.stopAllMotions === 'function') {
-          motionManager.stopAllMotions()
-          console.log('🛑 已停止所有动作')
+      const em = mm?.expressionManager
+      try {
+        if (em?.setExpression) {
+          const ret = em.setExpression(null)
+          if (typeof ret?.then === 'function') await ret
+        } else if (typeof model.expression === 'function') {
+          const ret = model.expression(null)
+          if (typeof ret?.then === 'function') await ret
         }
-      }
+      } catch {}
 
-      // 2. 重置表情 - 使用多种方法确保重置成功
-      let resetSuccess = false
-
-      // 方法1: 使用标准 expression API
-      if (typeof model.expression === 'function') {
+      const core = model.internalModel?.coreModel
+      if (core) {
         try {
-          const result = model.expression(null)
-          if (result && typeof result.then === 'function') {
-            await result
-            console.log('🔄 表情重置Promise已完成')
-          }
-          resetSuccess = true
-          console.log('✅ 标准API表情重置成功')
-        } catch (error) {
-          console.warn('⚠️ 标准API重置失败:', error)
-        }
+          core.setParameterValueById('ParamEyeLOpen', 1)
+          core.setParameterValueById('ParamEyeROpen', 1)
+          core.setParameterValueById('ParamMouthForm', 0)
+          core.setParameterValueById('ParamMouthOpenY', 0)
+        } catch {}
       }
 
-      // 方法2: 直接使用 expressionManager
-      if (model.internalModel?.motionManager?.expressionManager) {
-        try {
-          const expressionManager = model.internalModel.motionManager.expressionManager
-          if (typeof expressionManager.setExpression === 'function') {
-            const result = expressionManager.setExpression(null)
-            if (result && typeof result.then === 'function') {
-              await result
-              console.log('🔄 ExpressionManager重置Promise已完成')
-            }
-            resetSuccess = true
-            console.log('✅ ExpressionManager重置成功')
-          }
-        } catch (error) {
-          console.warn('⚠️ ExpressionManager重置失败:', error)
-        }
-      }
-
-      // 3. 强制重置关键参数到默认状态
-      if (model.internalModel?.coreModel) {
-        try {
-          const coreModel = model.internalModel.coreModel
-
-          // 重置眼部参数
-          coreModel.setParameterValueById('ParamEyeLOpen', 1)
-          coreModel.setParameterValueById('ParamEyeROpen', 1)
-
-          // 重置嘴部参数
-          coreModel.setParameterValueById('ParamMouthForm', 0)
-          coreModel.setParameterValueById('ParamMouthOpenY', 0)
-
-          // 重置眉毛参数
-          try {
-            coreModel.setParameterValueById('ParamBrowLY', 0)
-            coreModel.setParameterValueById('ParamBrowRY', 0)
-          } catch (e) {
-            // 某些参数可能不存在，忽略错误
-          }
-
-          console.log('✅ 关键参数已强制重置')
-          resetSuccess = true
-        } catch (error) {
-          console.warn('⚠️ 参数重置失败:', error)
-        }
-      }
-
-      // 4. 等待一段时间确保重置生效
-      await new Promise(resolve => setTimeout(resolve, 100))
-
-      // 5. 更新UI状态
       setCurrentExpression(null)
       setCurrentMotion(null)
-
-      if (resetSuccess) {
-        console.log('✅ 表情和动作完全重置成功')
-      } else {
-        console.warn('⚠️ 重置可能不完整，请检查模型状态')
-      }
-
-    } catch (error) {
-      console.error('❌ 重置过程中发生错误:', error)
+      console.log('✅ 已重置表情与动作')
+    } catch (e) {
+      console.error('❌ 重置异常:', e)
     }
   }
 
   return (
     <>
-      {/* 设置按钮 */}
+      {/* 触发按钮（可保留/也可移除，App 里已有一个的话可以删） */}
       <button
         onClick={() => onOpenChange(true)}
-        className="fixed top-4 right-4 z-50 bg-black bg-opacity-60 hover:bg-opacity-80 text-white p-3 rounded-full backdrop-blur-sm transition-all duration-200 hover:scale-110"
+        className="fixed top-4 right-4 z-50 bg-black/60 hover:bg-black/80 text-white p-3 rounded-full backdrop-blur-sm transition-all duration-200 hover:scale-110"
         title="设置"
       >
         <Settings size={20} />
       </button>
 
-      {/* 抽屉组件 */}
-      <Drawer.Root
-        open={isOpen}
-        onOpenChange={onOpenChange}
-        direction="right"
-      >
+      <Drawer.Root open={isOpen} onOpenChange={onOpenChange} direction="right">
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 bg-black/0 z-40" />
           <Drawer.Content className="bg-gray-900 text-white flex flex-col rounded-l-[10px] h-full w-[400px] mt-0 fixed bottom-0 right-0 z-50">
-            {/* 抽屉头部 */}
+            {/* 头部 */}
             <div className="p-4 border-b border-gray-700 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Settings size={20} />
-                <Drawer.Title className="text-lg font-semibold">
-                  Live2D 设置
-                </Drawer.Title>
+                <Drawer.Title className="text-lg font-semibold">Live2D 设置</Drawer.Title>
               </div>
-              <button
-                onClick={() => onOpenChange(false)}
-                className="p-1 hover:bg-gray-700 rounded transition-colors"
-              >
+              <button onClick={() => onOpenChange(false)} className="p-1 hover:bg-gray-700 rounded">
                 <X size={18} />
               </button>
             </div>
+            <Drawer.Description className="sr-only">Live2D 模型设置面板</Drawer.Description>
 
-            {/* 添加 Description 以解决无障碍性警告 */}
-            <Drawer.Description className="sr-only">
-              Live2D 模型设置面板，可以控制表情、动作和参数
-            </Drawer.Description>
-
-            {/* 标签页导航 */}
+            {/* 标签 */}
             <div className="flex border-b border-gray-700">
-              <button
-                onClick={() => setActiveTab('expressions')}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'expressions'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-700'
-                }`}
-              >
-                <Smile size={16} className="inline mr-2" />
-                表情
-              </button>
-              <button
-                onClick={() => setActiveTab('motions')}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'motions'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-700'
-                }`}
-              >
-                <Play size={16} className="inline mr-2" />
-                动作
-              </button>
-              <button
-                onClick={() => setActiveTab('lipsync')}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'lipsync'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-700'
-                }`}
-              >
-                <Volume2 size={16} className="inline mr-2" />
-                口型
-              </button>
-              <button
-                onClick={() => setActiveTab('parameters')}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'parameters'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-700'
-                }`}
-              >
-                <Sliders size={16} className="inline mr-2" />
-                参数
-              </button>
+              {[
+                { id: 'expressions', icon: <Smile size={16} className="inline mr-2" />, label: '表情' },
+                { id: 'motions', icon: <Play size={16} className="inline mr-2" />, label: '动作' },
+                { id: 'lipsync', icon: <Volume2 size={16} className="inline mr-2" />, label: '口型' },
+                { id: 'parameters', icon: <Sliders size={16} className="inline mr-2" />, label: '参数' },
+              ].map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id)}
+                  className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                    activeTab === t.id ? 'bg-blue-600 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  {t.icon}{t.label}
+                </button>
+              ))}
             </div>
 
-            {/* 内容区域 */}
+            {/* 内容 */}
             <div className="flex-1 overflow-y-auto p-4">
-              {/* 表情面板 */}
+              {/* 表情 */}
               {activeTab === 'expressions' && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-medium">表情控制</h3>
-                    <button
-                      onClick={resetExpression}
-                      className="flex items-center gap-1 px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors"
-                    >
-                      <RotateCcw size={14} />
-                      重置
+                    <button onClick={resetAll} className="flex items-center gap-1 px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm">
+                      <RotateCcw size={14} /> 重置
                     </button>
                   </div>
 
                   {currentExpression && (
-                    <div className="p-3 bg-blue-600 bg-opacity-20 border border-blue-500 rounded-lg">
-                      <p className="text-sm text-blue-200">
-                        当前表情: {EXPRESSIONS.find(exp => exp.id === currentExpression)?.name}
-                      </p>
+                    <div className="p-3 bg-blue-600/20 border border-blue-500 rounded-lg">
+                      <p className="text-sm text-blue-200">当前表情：{currentExpression}</p>
                     </div>
                   )}
 
+                  {!runtime?.expressions?.length && (
+                    <div className="text-sm text-gray-400">当前模型没有提供 Expressions。</div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-2">
-                    {EXPRESSIONS.map((expression) => (
+                    {runtime?.expressions?.map((e) => (
                       <button
-                        key={expression.id}
-                        onClick={() => playExpression(expression.id)}
+                        key={e.Name || e.name}
+                        onClick={() => playExpression(e.Name || e.name)}
                         className={`p-3 rounded-lg border transition-all duration-200 hover:scale-105 ${
-                          currentExpression === expression.id
+                          currentExpression === (e.Name || e.name)
                             ? 'bg-blue-600 border-blue-500 text-white'
                             : 'bg-gray-800 border-gray-600 hover:bg-gray-700 text-gray-200'
                         }`}
                       >
-                        <div className="text-lg mb-1">{expression.emoji}</div>
-                        <div className="text-sm font-medium">{expression.name}</div>
+                        <div className="text-sm font-medium">{e.Name || e.name}</div>
+                        <div className="text-xs opacity-70 mt-1">{baseName(e.File)}</div>
                       </button>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* 动作面板 */}
+              {/* 动作 */}
               {activeTab === 'motions' && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">动作控制</h3>
 
-                  {Object.entries(MOTIONS).map(([group, motions]) => (
-                    <div key={group || 'default'} className="space-y-2">
-                      <h4 className="text-md font-medium text-blue-300 flex items-center gap-2">
-                        <ChevronRight size={16} />
-                        {getGroupDisplayName(group)}
-                      </h4>
-                      <div className="grid grid-cols-1 gap-2 ml-4">
-                        {motions.map((motion) => (
-                          <button
-                            key={motion.id}
-                            onClick={() => playMotion(group, motion.id)}
-                            className="flex items-center gap-3 p-3 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg transition-all duration-200 hover:scale-105"
-                          >
-                            <span className="text-lg">{motion.icon}</span>
-                            <span className="text-sm font-medium">{motion.name}</span>
-                          </button>
-                        ))}
+                  {!runtime || !Object.keys(runtime.motions).length ? (
+                    <div className="text-sm text-gray-400">当前模型没有提供 Motions。</div>
+                  ) : (
+                    Object.entries(runtime.motions).map(([group, arr]) => (
+                      <div key={group} className="space-y-2">
+                        <h4 className="text-md font-medium text-blue-300 flex items-center gap-2">
+                          <ChevronRight size={16} /> {groupDisplayName(group)}
+                          <span className="text-xs text-gray-400 ml-2">({arr.length})</span>
+                        </h4>
+
+                        <div className="grid grid-cols-1 gap-2 ml-4">
+                          {arr.map((m, index) => {
+                            const file = m?.File || m?.file
+                            const disp = baseName(file) || `#${index}`
+                            const active = currentMotion && currentMotion.group === group && currentMotion.index === index
+                            return (
+                              <button
+                                key={`${group}-${index}-${file || ''}`}
+                                onClick={() => playMotion(group, index)}
+                                className={`flex items-center justify-between p-3 border rounded-lg transition-all duration-200 hover:scale-[1.02] ${
+                                  active
+                                    ? 'bg-blue-600 border-blue-500 text-white'
+                                    : 'bg-gray-800 border-gray-600 hover:bg-gray-700 text-gray-200'
+                                }`}
+                              >
+                                <span className="text-sm font-medium">{disp}</span>
+                                <span className="text-xs opacity-70">{group} · {index}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               )}
 
-              {/* 口型同步面板 */}
+              {/* 口型 */}
               {activeTab === 'lipsync' && (
-                <LipSyncPanel
-                  model={model}
-                  isModelLoaded={!!model}
-                />
+                <LipSyncPanel model={model} isModelLoaded={!!model} />
               )}
 
-              {/* 参数面板 */}
+              {/* 参数（占位） */}
               {activeTab === 'parameters' && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">参数调节</h3>
@@ -591,10 +276,12 @@ function SettingsDrawer({ model, isOpen, onOpenChange }) {
               )}
             </div>
 
-            {/* 抽屉底部信息 */}
+            {/* 底部信息 */}
             <div className="p-4 border-t border-gray-700 bg-gray-800">
               <div className="text-xs text-gray-400 text-center">
-                Live2D 悠悠模型 • 20个表情 • 7个动作 • 103个参数
+                {runtime
+                  ? `表情 ${runtime.expressions.length || 0} • 动作 ${totalMotionCount} • 参数 ${runtime.parameters.length || 0}`
+                  : '未加载模型'}
               </div>
             </div>
           </Drawer.Content>
