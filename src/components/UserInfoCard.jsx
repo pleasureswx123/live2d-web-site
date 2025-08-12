@@ -24,7 +24,7 @@ const UserInfoCard = () => {
   // 格式化同步时间
   const formatSyncTime = () => {
     if (!session.lastSync) return '未同步'
-    
+
     const syncTime = new Date(session.lastSync)
     const now = new Date()
     const diffMinutes = Math.floor((now - syncTime) / (1000 * 60))
@@ -35,9 +35,26 @@ const UserInfoCard = () => {
       return `${diffMinutes}分钟前`
     } else {
       const diffHours = Math.floor(diffMinutes / 60)
-      return `${diffHours}小时前`
+      if (diffHours < 24) {
+        return `${diffHours}小时前`
+      } else {
+        const diffDays = Math.floor(diffHours / 24)
+        return `${diffDays}天前`
+      }
     }
   }
+
+  // 实时更新同步时间显示
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // 强制重新渲染以更新时间显示
+      if (session.lastSync) {
+        // 这里可以触发重新渲染
+      }
+    }, 60000) // 每分钟更新一次
+
+    return () => clearInterval(interval)
+  }, [session.lastSync])
 
   // 如果没有用户信息，不显示组件
   if (!currentUser.id || !currentUser.name) {

@@ -434,7 +434,7 @@ export const useUserAuthStore = create((set, get) => ({
         }
       }
 
-      // 登录成功，立即隐藏登录界面
+      // 登录成功，执行完整的后续操作
       set({
         ui: {
           ...get().ui,
@@ -442,7 +442,15 @@ export const useUserAuthStore = create((set, get) => ({
         }
       })
 
-      console.log('✅ 登录成功，已隐藏登录界面')
+      // 执行登录后的完整流程
+      setTimeout(() => {
+        const { updateWelcomeMessage, connectWebSocket, loadSilenceTimeout } = get()
+        updateWelcomeMessage()
+        connectWebSocket()
+        loadSilenceTimeout()
+      }, 100)
+
+      console.log('✅ 登录成功，已隐藏登录界面并执行后续操作')
 
       return true
     } catch (error) {
@@ -461,7 +469,13 @@ export const useUserAuthStore = create((set, get) => ({
 
   // 注销用户
   logoutUser: () => {
-    get().sessionManager.clear()
+    const { sessionManager, disconnectWebSocket, clearChatMessages, resetRightPanel } = get()
+
+    // 执行完整的清理流程
+    disconnectWebSocket()
+    clearChatMessages()
+    resetRightPanel()
+    sessionManager.clear()
 
     set({
       users: {
@@ -472,10 +486,14 @@ export const useUserAuthStore = create((set, get) => ({
       status: {
         login: { message: '', type: '' },
         sync: { message: '', type: '' }
+      },
+      ui: {
+        ...get().ui,
+        showLoginDialog: true
       }
     })
 
-    console.log('✅ 用户注销成功')
+    console.log('✅ 用户注销成功，已执行完整清理流程')
   },
 
   // 加载最近用户
@@ -519,8 +537,22 @@ export const useUserAuthStore = create((set, get) => ({
   // 切换用户
   switchToUser: async (user) => {
     try {
-      const { sessionManager, showSyncStatus } = get()
+      const {
+        sessionManager,
+        showSyncStatus,
+        disconnectWebSocket,
+        clearChatMessages,
+        resetRightPanel,
+        updateWelcomeMessage,
+        connectWebSocket
+      } = get()
 
+      // 执行切换前的清理
+      disconnectWebSocket()
+      clearChatMessages()
+      resetRightPanel()
+
+      // 保存新用户会话
       sessionManager.save({
         userId: user.user_id,
         userName: user.name,
@@ -539,6 +571,12 @@ export const useUserAuthStore = create((set, get) => ({
           showSwitchUserDialog: false
         }
       })
+
+      // 执行切换后的初始化
+      setTimeout(() => {
+        updateWelcomeMessage()
+        connectWebSocket()
+      }, 100)
 
       console.log(`✅ 已切换到用户: ${user.name} (${user.user_id})`)
       showSyncStatus(`已切换到 ${user.name}`, 'success')
@@ -654,6 +692,62 @@ export const useUserAuthStore = create((set, get) => ({
         showSwitchUserDialog: false
       }
     })
+  },
+
+  // 更新欢迎消息（集成点 - 可以被聊天系统调用）
+  updateWelcomeMessage: () => {
+    const { currentUser } = get()
+    if (currentUser.name) {
+      const welcomeMessage = `你好${currentUser.name}！我是悠悠，一个18岁的动漫设计专业大一学妹～ 很高兴认识你！我对艺术创作和生活美学都很感兴趣，也喜欢和大家分享小众漫画和设计理念。有什么想聊的吗？`
+
+      // 触发自定义事件，让聊天系统可以监听
+      window.dispatchEvent(new CustomEvent('updateWelcomeMessage', {
+        detail: { message: welcomeMessage, userName: currentUser.name }
+      }))
+
+      console.log('📝 欢迎消息已更新:', welcomeMessage)
+    }
+  },
+
+  // 清空聊天记录（集成点 - 可以被聊天系统调用）
+  clearChatMessages: () => {
+    // 触发自定义事件，让聊天系统可以监听
+    window.dispatchEvent(new CustomEvent('clearChatMessages'))
+    console.log('🗑️ 聊天记录清空事件已触发')
+  },
+
+  // 重置右侧面板（集成点 - 可以被右侧面板系统调用）
+  resetRightPanel: () => {
+    // 触发自定义事件，让右侧面板系统可以监听
+    window.dispatchEvent(new CustomEvent('resetRightPanel'))
+    console.log('🔄 右侧面板重置事件已触发')
+  },
+
+  // WebSocket连接管理（集成点）
+  connectWebSocket: () => {
+    const { currentUser } = get()
+    if (currentUser.id) {
+      window.dispatchEvent(new CustomEvent('connectWebSocket', {
+        detail: { userId: currentUser.id, userName: currentUser.name }
+      }))
+      console.log('🔌 WebSocket连接事件已触发')
+    }
+  },
+
+  disconnectWebSocket: () => {
+    window.dispatchEvent(new CustomEvent('disconnectWebSocket'))
+    console.log('🔌 WebSocket断开事件已触发')
+  },
+
+  // 加载沉默时间设置（集成点）
+  loadSilenceTimeout: () => {
+    const { currentUser } = get()
+    if (currentUser.id) {
+      window.dispatchEvent(new CustomEvent('loadSilenceTimeout', {
+        detail: { userId: currentUser.id }
+      }))
+      console.log('⏰ 沉默时间加载事件已触发')
+    }
   }
 }))
 
@@ -679,5 +773,34 @@ export const useUserAuthStore = create((set, get) => ({
 // logoutUser() // 注销用户
 // showSwitchUserDialog() // 显示切换用户对话框
 // initializeUserSystem() // 初始化用户系统
+
+// 集成事件监听示例：
+// // 在聊天组件中监听用户认证事件
+// useEffect(() => {
+//   const handleUpdateWelcome = (e) => {
+//     console.log('更新欢迎消息:', e.detail.message)
+//     // 更新聊天界面的欢迎消息
+//   }
+//
+//   const handleClearChat = () => {
+//     console.log('清空聊天记录')
+//     // 清空聊天记录的逻辑
+//   }
+//
+//   const handleConnectWS = (e) => {
+//     console.log('连接WebSocket:', e.detail)
+//     // WebSocket连接逻辑
+//   }
+//
+//   window.addEventListener('updateWelcomeMessage', handleUpdateWelcome)
+//   window.addEventListener('clearChatMessages', handleClearChat)
+//   window.addEventListener('connectWebSocket', handleConnectWS)
+//
+//   return () => {
+//     window.removeEventListener('updateWelcomeMessage', handleUpdateWelcome)
+//     window.removeEventListener('clearChatMessages', handleClearChat)
+//     window.removeEventListener('connectWebSocket', handleConnectWS)
+//   }
+// }, [])
 
 export default useUserAuthStore

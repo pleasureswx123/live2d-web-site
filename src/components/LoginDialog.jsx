@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Popover from '@radix-ui/react-popover'
@@ -19,6 +19,36 @@ const LoginDialog = () => {
   } = useUserAuthStore()
 
   const [username, setUsername] = useState('')
+  const inputRef = useRef(null)
+
+  // 键盘事件处理
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && ui.showLoginDialog) {
+        // ESC键关闭登录对话框（如果有其他用户已登录）
+        if (useUserAuthStore.getState().currentUser.id) {
+          hideLoginDialog()
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [ui.showLoginDialog, hideLoginDialog])
+
+  // 点击外部关闭用户建议
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (ui.showUserSuggestions && inputRef.current && !inputRef.current.contains(e.target)) {
+        useUserAuthStore.setState({
+          ui: { ...useUserAuthStore.getState().ui, showUserSuggestions: false }
+        })
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [ui.showUserSuggestions])
 
   // 处理用户名输入
   const handleUsernameChange = (e) => {
@@ -104,6 +134,7 @@ const LoginDialog = () => {
                 <Popover.Root open={ui.showUserSuggestions}>
                   <Popover.Trigger asChild>
                     <input
+                      ref={inputRef}
                       type="text"
                       id="usernameInput"
                       value={username}

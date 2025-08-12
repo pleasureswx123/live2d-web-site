@@ -24,6 +24,18 @@ const SwitchUserDialog = () => {
     }
   }, [ui.showSwitchUserDialog, loadRecentUsers])
 
+  // 键盘事件处理
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && ui.showSwitchUserDialog) {
+        hideSwitchUserDialog()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [ui.showSwitchUserDialog, hideSwitchUserDialog])
+
   // 处理手动输入用户名切换
   const handleUserSwitch = async () => {
     if (!switchUsername.trim()) {
