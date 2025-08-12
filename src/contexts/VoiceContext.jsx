@@ -12,6 +12,7 @@ const VoiceContext = createContext()
 // Provider 组件
 export const VoiceProvider = ({ children }) => {
   const [currentVoice, setCurrentVoice] = useState('zh_female_meilinvyou_emo_v2_mars_bigtts')
+  const [currentSpeed, setCurrentSpeed] = useState(1.2)
 
   // 切换音色的方法
   const changeVoice = (voiceId) => {
@@ -34,11 +35,31 @@ export const VoiceProvider = ({ children }) => {
     return voiceNames[currentVoice] || '未知音色'
   }
 
+  // 切换语速的方法
+  const changeSpeed = (speed) => {
+    setCurrentSpeed(speed)
+    console.log(`🎚️ 语速已调节为: ${speed.toFixed(1)}x`)
+  }
+
+  // 获取语速描述
+  const getSpeedDescription = (speed) => {
+    if (speed < 0.8) {
+      return '慢速'
+    } else if (speed > 1.2) {
+      return '快速'
+    } else {
+      return '正常'
+    }
+  }
+
   const value = {
     currentVoice,
     voiceNames,
     changeVoice,
-    getCurrentVoiceName
+    getCurrentVoiceName,
+    currentSpeed,
+    changeSpeed,
+    getSpeedDescription
   }
 
   return (
