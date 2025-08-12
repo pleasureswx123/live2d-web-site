@@ -7,6 +7,7 @@ import SidebarDrawer from './components/SidebarDrawer'
 import VoiceSelector from './components/VoiceSelector'
 import SpeedControl from './components/SpeedControl'
 import ASRSelector from './components/ASRSelector'
+import ConversationStage from './components/ConversationStage'
 import TTSChat from './components/TTSChat'
 // 自适应窗口尺寸（含 dpr 改变时的刷新）
 function useViewport() {
@@ -40,8 +41,20 @@ const AppContent = () => {
   const [pixiApp, setPixiApp] = useState(null)
   const [modelInfo, setModelInfo] = useState(null)
   const {width, height} = useViewport()
-  const { registerToast } = useVoice()
+  const { registerToast, changeStage } = useVoice()
   const { addToast } = useToast()
+
+  const hasInitialized = useRef(false)
+
+  useEffect(() => {
+    if (hasInitialized.current) {
+      console.log('💬 对话阶段组件初始化已跳过（已执行过）')
+      return
+    }
+    changeStage('initial_meeting')
+    hasInitialized.current = true
+    console.log('💬 对话阶段组件已初始化，设置为初识阶段')
+  }, [])
 
   // 注册Toast函数到VoiceContext
   useEffect(() => {
@@ -99,6 +112,9 @@ const AppContent = () => {
             </div>
             <div className="mt-6">
               <ASRSelector/>
+            </div>
+            <div className="mt-6">
+              <ConversationStage/>
             </div>
           </SidebarDrawer>
 

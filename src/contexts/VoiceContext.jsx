@@ -12,6 +12,16 @@ const asrNames = {
   'doubao': '豆包ASR'
 }
 
+// 对话阶段名称映射
+const stageNames = {
+  'initial_meeting': '初识阶段',
+  'getting_to_know': '了解阶段',
+  'new_friends': '新朋友阶段',
+  'close_friends': '普通朋友阶段',
+  'ambiguous': '暧昧阶段',
+  'love': '恋爱阶段'
+}
+
 // 创建 Context
 const VoiceContext = createContext()
 
@@ -21,6 +31,23 @@ export const VoiceProvider = ({ children }) => {
   const [currentSpeed, setCurrentSpeed] = useState(1.2)
   const [currentASR, setCurrentASR] = useState('xfyun')
   const [toastFunction, setToastFunction] = useState(null)
+
+  // 对话阶段状态
+  const [conversationStage, setConversationStage] = useState({
+    stage: 'initial_meeting',
+    turn_count: 0,
+    stage_name: '初识阶段',
+    description: '悠悠比较害羞试探，希望了解用户基本信息',
+    key_info_status: {
+      name: false,
+      identity: false,
+      hobbies: false
+    },
+    info_completion: 0,
+    is_manual: false
+  })
+  const [isManualStageControl, setIsManualStageControl] = useState(true)
+  const [manualStage, setManualStage] = useState('')
 
   // 注册Toast函数
   const registerToast = (toastFn) => {
@@ -117,6 +144,48 @@ export const VoiceProvider = ({ children }) => {
     return asrNames[currentASR] || '未知ASR'
   }
 
+  // 更新对话阶段信息（其他组件会调用）
+  const updateConversationStage = (stageInfo) => {
+    try {
+      console.log('🔧 updateConversationStage 被调用，参数:', stageInfo)
+
+      setConversationStage(prev => ({
+        ...prev,
+        ...stageInfo
+      }))
+
+      console.log('✅ 对话阶段信息已更新')
+    } catch (error) {
+      console.error('❌ 更新对话阶段信息失败:', error)
+    }
+  }
+
+  // 手动切换对话阶段
+  const changeStage = (selectedStage) => {
+    setIsManualStageControl(false)
+    setManualStage(selectedStage)
+
+    const stageName = stageNames[selectedStage] || selectedStage
+    console.log(`🎛️ 手动设置对话阶段为: ${selectedStage}`)
+
+    // 显示通知
+    showNotification('对话阶段调节', `对话阶段已手动调节为: ${stageName}`)
+
+    // to do ...发送阶段调节请求到后端
+    // if (ws && ws.readyState === WebSocket.OPEN) {
+    //   ws.send(JSON.stringify({
+    //     type: 'manual_stage_change',
+    //     stage: selectedStage
+    //   }));
+    //   console.log(`📤 手动阶段调节请求已发送: ${selectedStage}`);
+    // }
+  }
+
+  // 获取当前阶段名称
+  const getCurrentStageName = () => {
+    return stageNames[conversationStage.stage_name] || '未知阶段'
+  }
+
   const value = {
     currentVoice,
     voiceNames,
@@ -130,7 +199,15 @@ export const VoiceProvider = ({ children }) => {
     changeASR,
     getCurrentASRName,
     registerToast,
-    showNotification
+    showNotification,
+    // 对话阶段相关
+    conversationStage,
+    stageNames,
+    updateConversationStage,
+    changeStage,
+    getCurrentStageName,
+    isManualStageControl,
+    manualStage
   }
 
   return (
