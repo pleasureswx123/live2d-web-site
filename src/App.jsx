@@ -41,11 +41,9 @@ const AppContent = () => {
   const [pixiApp, setPixiApp] = useState(null)
   const [modelInfo, setModelInfo] = useState(null)
   const {width, height} = useViewport()
-  const { registerToast, changeStage } = useVoice()
-  const { addToast } = useToast()
-
+  const {registerToast, changeStage} = useVoice()
+  const {addToast} = useToast()
   const hasInitialized = useRef(false)
-
   useEffect(() => {
     if (hasInitialized.current) {
       console.log('💬 对话阶段组件初始化已跳过（已执行过）')
@@ -55,7 +53,6 @@ const AppContent = () => {
     hasInitialized.current = true
     console.log('💬 对话阶段组件已初始化，设置为初识阶段')
   }, [])
-
   // 注册Toast函数到VoiceContext
   useEffect(() => {
     registerToast(addToast)
@@ -74,63 +71,61 @@ const AppContent = () => {
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-gray-900">
 
-          <video
-            className="absolute inset-0 w-full h-full object-cover"
-            autoPlay
-            loop
-            muted
-            playsInline
-          >
-            <source src="/video/live2d_bg.mp4" type="video/mp4"/>
-          </video>
+      <video
+        className="absolute inset-0 w-full h-full object-cover"
+        autoPlay
+        loop
+        muted
+        playsInline
+      >
+        <source src="/video/live2d_bg.mp4" type="video/mp4"/>
+      </video>
 
-          <Live2DViewer
-            modelPath="/models/youyou/youyou.model3.json"
-            width={width}
-            height={height}
-            onModelLoad={handleModelLoad}
-            onError={handleModelError}
-            className="absolute inset-0"
-          />
+      <Live2DViewer
+        modelPath="/models/youyou/youyou.model3.json"
+        width={width}
+        height={height}
+        onModelLoad={handleModelLoad}
+        onError={handleModelError}
+        className="absolute inset-0"
+      />
 
-          {currentModel && pixiApp && (
-            <TTSChat model={currentModel} app={pixiApp} wsUrl={"ws://localhost:8000/tts"}/>
-          )}
+      {currentModel && pixiApp && (
+        <TTSChat model={currentModel} app={pixiApp} wsUrl={"ws://localhost:8000/tts"}/>
+      )}
 
-          <SettingsDrawer
-            model={currentModel}
-            app={pixiApp}         // ← 需要就把 app 也给到
-            info={modelInfo}
-            isOpen={isDrawerOpen}
-            onOpenChange={setIsDrawerOpen}
-          />
+      <SettingsDrawer
+        model={currentModel}
+        app={pixiApp}         // ← 需要就把 app 也给到
+        info={modelInfo}
+        isOpen={isDrawerOpen}
+        onOpenChange={setIsDrawerOpen}
+      />
 
-          <SidebarDrawer>
-            <VoiceSelector/>
-            <div className="mt-6">
-              <SpeedControl/>
-            </div>
-            <div className="mt-6">
-              <ASRSelector/>
-            </div>
-            <div className="mt-6">
-              <ConversationStage/>
-            </div>
-          </SidebarDrawer>
+      <SidebarDrawer>
+        <VoiceSelector/>
+        <div className="mt-6">
+          <SpeedControl/>
+        </div>
+        <div className="mt-6">
+          <ASRSelector/>
+        </div>
+        <div className="mt-6">
+          <ConversationStage/>
+        </div>
+      </SidebarDrawer>
 
     </div>
   )
 }
-
 // 主App组件
 function App() {
   return (
     <VoiceProvider>
       <ToastProvider>
-        <AppContent />
+        <AppContent/>
       </ToastProvider>
     </VoiceProvider>
   )
 }
-
 export default App
