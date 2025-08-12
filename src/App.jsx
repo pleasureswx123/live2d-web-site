@@ -12,6 +12,7 @@ import ConversationStage from './components/ConversationStage'
 import ConversationStageInfo from './components/ConversationStageInfo'
 import ConversionActivity from './components/ConversionActivity'
 import UserProfile from './components/UserProfile'
+import ProactiveChatControl from './components/ProactiveChatControl'
 import TTSChat from './components/TTSChat'
 // 自适应窗口尺寸（含 dpr 改变时的刷新）
 function useViewport() {
@@ -107,7 +108,12 @@ const AppContent = () => {
       />
 
       <SidebarDrawer>
-        <VoiceSelector/>
+        <div className="mt-6">
+          <ProactiveChatControl/>
+        </div>
+        <div className="mt-6">
+          <VoiceSelector/>
+        </div>
         <div className="mt-6">
           <SpeedControl/>
         </div>
@@ -121,7 +127,7 @@ const AppContent = () => {
 
       {/* 右侧抽屉组件 */}
       <RightDrawer>
-        <UserProfile />
+        <UserProfile/>
         <div className="mt-6">
           <ConversationStageInfo />
         </div>
