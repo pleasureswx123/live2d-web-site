@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Live2DViewer from './components/Live2DViewer'
 import SettingsDrawer from './components/SettingsDrawer'
+import SidebarDrawer from './components/SidebarDrawer'
 import TTSChat from './components/TTSChat'
 
 // 自适应窗口尺寸（含 dpr 改变时的刷新）
@@ -85,16 +86,10 @@ function App() {
         onOpenChange={setIsDrawerOpen}
       />
 
-      <button
-        onClick={() => setIsDrawerOpen(true)}
-        className="fixed top-4 right-4 z-50 p-3 bg-gray-800 hover:bg-gray-700 text-white rounded-lg shadow-lg transition-colors"
-        title="打开设置"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"/>
-        </svg>
-      </button>
+      <SidebarDrawer>
+        {/* 这里后续可以放置你的组件 */}
+      </SidebarDrawer>
+
     </div>
   )
 }
