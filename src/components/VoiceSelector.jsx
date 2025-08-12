@@ -1,11 +1,17 @@
 import { useVoice } from '../contexts/VoiceContext'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select'
 
 const VoiceSelector = () => {
   const { currentVoice, voiceNames, changeVoice, getCurrentVoiceName } = useVoice()
 
   // 处理音色切换
-  const handleVoiceChange = (event) => {
-    const selectedVoice = event.target.value
+  const handleVoiceChange = (selectedVoice) => {
     changeVoice(selectedVoice)
   }
 
@@ -17,17 +23,18 @@ const VoiceSelector = () => {
       </div>
 
       {/* 选择框 */}
-      <select
-        value={currentVoice}
-        onChange={handleVoiceChange}
-        className="w-full p-3 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-3"
-      >
-        {Object.entries(voiceNames).map(([voiceId, voiceName]) => (
-          <option key={voiceId} value={voiceId}>
-            {voiceName} {voiceId === 'zh_female_meilinvyou_emo_v2_mars_bigtts' ? '(默认)' : ''}
-          </option>
-        ))}
-      </select>
+      <Select value={currentVoice} onValueChange={handleVoiceChange}>
+        <SelectTrigger className="w-full mb-3">
+          <SelectValue placeholder="选择音色" />
+        </SelectTrigger>
+        <SelectContent>
+          {Object.entries(voiceNames).map(([voiceId, voiceName]) => (
+            <SelectItem key={voiceId} value={voiceId}>
+              {voiceName} {voiceId === 'zh_female_meilinvyou_emo_v2_mars_bigtts' ? '(默认)' : ''}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {/* 状态显示 */}
       <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded-lg">

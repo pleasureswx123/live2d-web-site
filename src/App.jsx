@@ -1,6 +1,6 @@
 import {useState, useEffect, useRef} from 'react'
-import {VoiceProvider} from './contexts/VoiceContext'
-import {ToastProvider} from './components/ui/toast'
+import {VoiceProvider, useVoice} from './contexts/VoiceContext'
+import {ToastProvider, useToast} from './components/ui/toast'
 import Live2DViewer from './components/Live2DViewer'
 import SettingsDrawer from './components/SettingsDrawer'
 import SidebarDrawer from './components/SidebarDrawer'
@@ -33,12 +33,20 @@ function useViewport() {
   }, [])
   return size
 }
-function App() {
+// 内部组件用于注册Toast函数
+const AppContent = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [currentModel, setCurrentModel] = useState(null)
   const [pixiApp, setPixiApp] = useState(null)
   const [modelInfo, setModelInfo] = useState(null)
   const {width, height} = useViewport()
+  const { registerToast } = useVoice()
+  const { addToast } = useToast()
+
+  // 注册Toast函数到VoiceContext
+  useEffect(() => {
+    registerToast(addToast)
+  }, [registerToast, addToast])
   // 处理模型加载
   const handleModelLoad = (model, app, info) => {
     setCurrentModel(model)
@@ -51,9 +59,7 @@ function App() {
     console.error('❌ 模型加载失败:', error)
   }
   return (
-    <VoiceProvider>
-      <ToastProvider>
-        <div className="relative w-screen h-screen overflow-hidden bg-gray-900">
+    <div className="relative w-screen h-screen overflow-hidden bg-gray-900">
 
           <video
             className="absolute inset-0 w-full h-full object-cover"
@@ -96,9 +102,19 @@ function App() {
             </div>
           </SidebarDrawer>
 
-        </div>
+    </div>
+  )
+}
+
+// 主App组件
+function App() {
+  return (
+    <VoiceProvider>
+      <ToastProvider>
+        <AppContent />
       </ToastProvider>
     </VoiceProvider>
   )
 }
+
 export default App

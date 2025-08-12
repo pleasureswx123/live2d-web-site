@@ -20,12 +20,33 @@ export const VoiceProvider = ({ children }) => {
   const [currentVoice, setCurrentVoice] = useState('zh_female_meilinvyou_emo_v2_mars_bigtts')
   const [currentSpeed, setCurrentSpeed] = useState(1.2)
   const [currentASR, setCurrentASR] = useState('xfyun')
+  const [toastFunction, setToastFunction] = useState(null)
+
+  // 注册Toast函数
+  const registerToast = (toastFn) => {
+    setToastFunction(() => toastFn)
+  }
+
+  // 显示通知的统一方法
+  const showNotification = (title, description, variant = 'default') => {
+    if (toastFunction) {
+      toastFunction({
+        title,
+        description,
+        variant,
+        duration: 2000
+      })
+    }
+  }
 
   // 切换音色的方法
   const changeVoice = (voiceId) => {
     setCurrentVoice(voiceId)
     const voiceName = voiceNames[voiceId] || '未知音色'
     console.log(`🎵 音色已切换为: ${voiceName} (${voiceId})`)
+
+    // 显示通知
+    showNotification('音色切换', `音色已切换为: ${voiceName}`)
 
     // to do 后续后完善，发送音色切换请求到后端
     // if (ws && ws.readyState === WebSocket.OPEN) {
@@ -47,6 +68,10 @@ export const VoiceProvider = ({ children }) => {
     setCurrentSpeed(speed)
     console.log(`🎚️ 语速已调节为: ${speed.toFixed(1)}x`)
 
+    // 显示通知
+    const speedText = getSpeedDescription(speed)
+    showNotification('语速调节', `语速已调节为: ${speed.toFixed(1)}x (${speedText})`)
+
     // to do ... 发送语速调节请求到后端
     // if (ws && ws.readyState === WebSocket.OPEN) {
     //   ws.send(JSON.stringify({
@@ -55,7 +80,6 @@ export const VoiceProvider = ({ children }) => {
     //   }));
     //   console.log(`📤 语速调节请求已发送: ${currentSpeed}`);
     // }
-
   }
 
   // 获取语速描述
@@ -74,6 +98,9 @@ export const VoiceProvider = ({ children }) => {
     setCurrentASR(asrId)
     const asrName = asrNames[asrId] || '未知ASR'
     console.log(`🎤 ASR已切换为: ${asrName} (${asrId})`)
+
+    // 显示通知
+    showNotification('语音识别切换', `ASR已切换为: ${asrName}`)
 
     // to do ... 发送ASR切换请求到后端
     // if (ws && ws.readyState === WebSocket.OPEN) {
@@ -101,7 +128,9 @@ export const VoiceProvider = ({ children }) => {
     currentASR,
     asrNames,
     changeASR,
-    getCurrentASRName
+    getCurrentASRName,
+    registerToast,
+    showNotification
   }
 
   return (

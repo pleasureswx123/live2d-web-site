@@ -1,5 +1,4 @@
 import { useVoice } from '../contexts/VoiceContext'
-import { useToast } from './ui/toast'
 import {
   Select,
   SelectContent,
@@ -10,20 +9,10 @@ import {
 
 const ASRSelector = () => {
   const { currentASR, asrNames, changeASR, getCurrentASRName } = useVoice()
-  const { addToast } = useToast()
 
   // 处理ASR切换
   const handleASRChange = (selectedASR) => {
     changeASR(selectedASR)
-    
-    // 显示通知
-    const asrName = asrNames[selectedASR] || '未知ASR'
-    addToast({
-      title: "语音识别切换",
-      description: `ASR已切换为: ${asrName}`,
-      variant: "default",
-      duration: 2000
-    })
   }
 
   return (

@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useVoice } from '../contexts/VoiceContext'
-import { useToast } from './ui/toast'
 import { Slider } from './ui/slider'
 
 const SpeedControl = () => {
-  const { currentSpeed, changeSpeed, getSpeedDescription } = useVoice()
-  const { addToast } = useToast()
+  const { currentSpeed, changeSpeed } = useVoice()
   const [displaySpeed, setDisplaySpeed] = useState(currentSpeed)
 
   // 处理滑块变化
@@ -13,14 +11,6 @@ const SpeedControl = () => {
     const speed = value[0] // Radix Slider 返回数组
     setDisplaySpeed(speed)
     changeSpeed(speed)
-    // 显示通知
-    const speedText = getSpeedDescription(speed)
-    addToast({
-      title: "语速调节",
-      description: `语速已调节为: ${speed.toFixed(1)}x (${speedText})`,
-      variant: "default",
-      duration: 2000
-    })
   }
 
   // 当全局状态变化时同步本地显示
