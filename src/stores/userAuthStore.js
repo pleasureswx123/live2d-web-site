@@ -21,7 +21,7 @@ export const useUserAuthStore = create((set, get) => ({
 
   // UI状态
   ui: {
-    showLoginDialog: true,
+    showLoginDialog: false, // 默认不显示登录对话框，等初始化完成后决定
     showSwitchUserDialog: false,
     showUserSuggestions: false,
     isLoading: false,
@@ -434,15 +434,15 @@ export const useUserAuthStore = create((set, get) => ({
         }
       }
 
-      // 登录成功，隐藏登录界面
-      setTimeout(() => {
-        set({
-          ui: {
-            ...get().ui,
-            showLoginDialog: false
-          }
-        })
-      }, 1500)
+      // 登录成功，立即隐藏登录界面
+      set({
+        ui: {
+          ...get().ui,
+          showLoginDialog: false
+        }
+      })
+
+      console.log('✅ 登录成功，已隐藏登录界面')
 
       return true
     } catch (error) {
@@ -580,9 +580,16 @@ export const useUserAuthStore = create((set, get) => ({
   initializeUserSystem: () => {
     const { sessionManager, performSmartSync } = get()
 
+    console.log('🔄 初始化用户系统...')
+
     const session = sessionManager.load()
     if (session) {
-      console.log('✅ 自动登录成功')
+      console.log('✅ 自动登录成功，用户:', session.userName)
+
+      // 隐藏登录对话框
+      set({
+        ui: { ...get().ui, showLoginDialog: false }
+      })
 
       // 执行智能同步检查
       setTimeout(() => {
@@ -595,6 +602,12 @@ export const useUserAuthStore = create((set, get) => ({
       return true
     } else {
       console.log('❌ 未找到保存的用户数据，显示登录界面')
+
+      // 显示登录对话框
+      set({
+        ui: { ...get().ui, showLoginDialog: true }
+      })
+
       return false
     }
   },

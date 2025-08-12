@@ -17,6 +17,7 @@ const UserInfoCard = () => {
 
   // 组件挂载时初始化用户系统
   useEffect(() => {
+    console.log('🚀 UserInfoCard 组件挂载，开始初始化用户系统')
     initializeUserSystem()
   }, [initializeUserSystem])
 

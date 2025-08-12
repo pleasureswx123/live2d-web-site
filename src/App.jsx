@@ -1,6 +1,7 @@
 import {useState, useEffect, useRef} from 'react'
 import {VoiceProvider, useVoice} from './contexts/VoiceContext'
 import {ToastProvider, useToast} from './components/ui/toast'
+import {useUserAuthStore} from './stores/userAuthStore'
 import Live2DViewer from './components/Live2DViewer'
 import SettingsDrawer from './components/SettingsDrawer'
 import SidebarDrawer from './components/SidebarDrawer'
@@ -49,10 +50,20 @@ const AppContent = () => {
   const [currentModel, setCurrentModel] = useState(null)
   const [pixiApp, setPixiApp] = useState(null)
   const [modelInfo, setModelInfo] = useState(null)
+
+  // 获取用户认证初始化函数
+  const initializeUserSystem = useUserAuthStore(state => state.initializeUserSystem)
   const {width, height} = useViewport()
   const {registerToast, changeStage} = useVoice()
   const {addToast} = useToast()
   const hasInitialized = useRef(false)
+
+  // 应用启动时初始化用户认证系统
+  useEffect(() => {
+    console.log('🚀 App 启动，初始化用户认证系统')
+    initializeUserSystem()
+  }, [initializeUserSystem])
+
   useEffect(() => {
     if (hasInitialized.current) {
       console.log('💬 对话阶段组件初始化已跳过（已执行过）')
