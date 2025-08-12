@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
+import { VoiceProvider } from './contexts/VoiceContext'
 import Live2DViewer from './components/Live2DViewer'
 import SettingsDrawer from './components/SettingsDrawer'
 import SidebarDrawer from './components/SidebarDrawer'
+import VoiceSelector from './components/VoiceSelector'
 import TTSChat from './components/TTSChat'
 
 // 自适应窗口尺寸（含 dpr 改变时的刷新）
@@ -53,7 +55,8 @@ function App() {
   }
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-gray-900">
+    <VoiceProvider>
+      <div className="relative w-screen h-screen overflow-hidden bg-gray-900">
 
       <video
         className="absolute inset-0 w-full h-full object-cover"
@@ -87,10 +90,10 @@ function App() {
       />
 
       <SidebarDrawer>
-        {/* 这里后续可以放置你的组件 */}
+        <VoiceSelector />
       </SidebarDrawer>
-
-    </div>
+      </div>
+    </VoiceProvider>
   )
 }
 export default App
