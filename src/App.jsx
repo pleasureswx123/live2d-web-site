@@ -13,6 +13,7 @@ import ConversationStageInfo from './components/ConversationStageInfo'
 import ConversionActivity from './components/ConversionActivity'
 import UserProfile from './components/UserProfile'
 import ProactiveChatControl from './components/ProactiveChatControl'
+import SystemControl from './components/SystemControl'
 import TTSChat from './components/TTSChat'
 // 自适应窗口尺寸（含 dpr 改变时的刷新）
 function useViewport() {
@@ -108,6 +109,7 @@ const AppContent = () => {
       />
 
       <SidebarDrawer>
+        <SystemControl/>
         <div className="mt-6">
           <ProactiveChatControl/>
         </div>
