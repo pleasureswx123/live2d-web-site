@@ -1,0 +1,799 @@
+<!-- 用户登录界面弹窗 -->
+<div id="loginOverlay" class="login-overlay">
+  <div class="login-modal">
+    <div class="login-header">
+      <h2>👋 欢迎使用悠悠AI</h2>
+      <p>请输入您的用户名开始聊天</p>
+    </div>
+    <div class="login-form">
+      <div class="form-group">
+        <label for="usernameInput">用户名</label>
+        <input type="text" id="usernameInput" placeholder="输入您的用户名..." autocomplete="off">
+        <div id="userSuggestions" class="user-suggestions"></div>
+      </div>
+      <div class="login-buttons">
+        <button id="loginBtn" class="login-btn login-btn-primary">
+          <span id="loginBtnText">开始聊天</span>
+          <div id="loginSpinner" class="loading-spinner" style="display: none;"></div>
+        </button>
+        <button id="manageBtn" class="login-btn login-btn-secondary">
+          📊 管理用户
+        </button>
+        <button id="logoutBtn" class="login-btn login-btn-secondary" style="background: #ef4444; color: white;">
+          🚪 注销登录
+        </button>
+      </div>
+      <div id="loginStatus" class="login-status"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 用户切换界面弹窗 -->
+<div id="switchUserOverlay" class="login-overlay" style="display: none;">
+  <div class="login-modal">
+    <div class="login-header">
+      <h2>👥 切换用户</h2>
+      <p>选择要切换到的用户账户</p>
+    </div>
+    <div class="switch-user-content">
+      <div class="quick-switch-section">
+        <h4>最近使用的用户</h4>
+        <div id="recentUsersList" class="recent-users-list">
+          <div class="loading-text">正在加载用户列表...</div>
+        </div>
+      </div>
+      <div class="new-user-section">
+        <h4>登录其他用户</h4>
+        <div class="form-group">
+          <label for="switchUsernameInput">用户名</label>
+          <input type="text" id="switchUsernameInput" placeholder="输入用户名...">
+        </div>
+      </div>
+      <div class="login-buttons">
+        <button id="switchLoginBtn" class="login-btn login-btn-primary">
+          🔄 切换
+        </button>
+        <button id="cancelSwitchBtn" class="login-btn login-btn-secondary">
+          取消
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 用户信息显示 -->
+<div class="sidebar-header">
+  <h1>悠悠</h1>
+  <div id="currentUserInfo" class="user-info" style="display: none;">
+    <h3 id="currentUserName">用户名</h3>
+    <p id="currentUserDetails">用户信息</p>
+    <div class="user-actions">
+      <button id="syncUserBtn" class="sync-btn" title="手动同步用户数据">
+        🔄 同步
+      </button>
+      <button id="switchUserBtn" class="switch-user-btn" title="切换到其他用户">
+        👥 切换用户
+      </button>
+      <div id="userSyncInfo" class="sync-info">
+        <span id="lastSyncTime" class="sync-time">未同步</span>
+        <span id="onlineStatus" class="online-indicator online">●</span>
+      </div>
+    </div>
+    <div id="syncStatus" class="sync-status" style="display: none;"></div>
+  </div>
+</div>
+
+
+<script>
+  let currentUserId = null;
+  let currentUserName = null;
+  // 增强的用户会话管理类
+  class UserSessionManager {
+    constructor() {
+      this.SESSION_KEY = 'user_session_v2';
+      this.SYNC_INTERVAL = 60 * 60 * 1000; // 1小时同步间隔
+      this.session = null;
+    }
+    // 保存完整会话信息
+    saveSession(userData) {
+      const session = {
+        userId: userData.userId || userData.user_id,
+        userName: userData.userName || userData.name,
+        profile: userData.profile || {
+          name: userData.userName || userData.name,
+          age: userData.age || null,
+          gender: userData.gender || null,
+          style: userData.style || '友好',
+          interests: userData.interests || []
+        },
+        lastSync: new Date().toISOString(),
+        isOffline: false,
+        sessionToken: userData.sessionToken || null
+      };
+      localStorage.setItem(this.SESSION_KEY, JSON.stringify(session));
+      this.session = session;
+      console.log('✅ 完整用户会话已保存:', session);
+      return session;
+    }
+    // 加载会话信息
+    loadSession() {
+      try {
+        const data = localStorage.getItem(this.SESSION_KEY);
+        if (data) {
+          this.session = JSON.parse(data);
+          console.log('✅ 从本地存储恢复用户会话:', this.session);
+          return this.session;
+        }
+        // 兼容旧版localStorage
+        return this.migrateOldSession();
+      } catch (error) {
+        console.error('❌ 加载会话失败:', error);
+        return null;
+      }
+    }
+    migrateOldSession() {
+      const oldUserId = localStorage.getItem('currentUserId');
+      const oldUserName = localStorage.getItem('currentUserName');
+      if (oldUserId && oldUserName) {
+        const session = this.saveSession({
+          userId: oldUserId,
+          userName: oldUserName
+        });
+        // 清理旧数据
+        localStorage.removeItem('currentUserId');
+        localStorage.removeItem('currentUserName');
+        return session;
+      }
+      return null;
+    }
+    // 检查会话是否过期
+    isSessionExpired() {
+      if (!this.session || !this.session.lastSync) return true;
+      const lastSync = new Date(this.session.lastSync);
+      const now = new Date();
+      const expired = (now - lastSync) > this.SYNC_INTERVAL;
+      console.log(`🕒 会话检查: 上次同步 ${lastSync.toLocaleString()}, ${expired ? '已过期' : '有效'}`);
+      return expired;
+    }
+    // 刷新会话（从服务器获取最新数据）
+    async refreshSession(showLoading = false) {
+      if (!this.session) {
+        throw new Error('没有活跃会话');
+      }
+      try {
+        if (showLoading) {
+          this.showSyncStatus('正在同步用户数据...', 'loading');
+        }
+        console.log('🔄 开始刷新用户会话...');
+        const response = await fetch(`http://localhost:8000/api/user/${this.session.userId}/session`);
+        const data = await response.json();
+        if (data.success && data.profile) {
+          // 更新会话数据
+          const updatedSession = this.saveSession({
+            userId: this.session.userId,
+            userName: data.profile.name,
+            profile: data.profile,
+            sessionToken: this.session.sessionToken
+          });
+          // 标记为在线状态
+          updatedSession.isOffline = false;
+          this.saveSession(updatedSession);
+          if (showLoading) {
+            this.showSyncStatus('同步成功！', 'success');
+          }
+          console.log('✅ 会话刷新成功:', updatedSession);
+          return updatedSession;
+        } else {
+          throw new Error(data.error || '用户验证失败');
+        }
+      } catch (error) {
+        console.error('❌ 会话刷新失败:', error);
+        // 标记为离线状态
+        if (this.session) {
+          this.session.isOffline = true;
+          this.saveSession(this.session);
+        }
+        if (showLoading) {
+          this.showSyncStatus('同步失败，使用离线模式', 'error');
+        }
+        throw error;
+      }
+    }
+    // 清除会话
+    clearSession() {
+      localStorage.removeItem(this.SESSION_KEY);
+      this.session = null;
+      console.log('✅ 用户会话已清除');
+    }
+    // 获取当前会话
+    getCurrentSession() {
+      return this.session || this.loadSession();
+    }
+    // 显示同步状态
+    showSyncStatus(message, type = 'info') {
+      const statusEl = document.getElementById('syncStatus');
+      if (statusEl) {
+        statusEl.textContent = message;
+        statusEl.className = `sync-status ${type}`;
+        statusEl.style.display = 'block';
+        // 3秒后自动隐藏
+        setTimeout(() => {
+          statusEl.style.display = 'none';
+        }, 3000);
+      }
+      console.log(`📊 同步状态: ${message}`);
+    }
+  }
+  // 创建全局会话管理器实例
+  const sessionManager = new UserSessionManager();
+  function loadUserFromStorage() {
+    const session = sessionManager.loadSession();
+    if (session) {
+      currentUserId = session.userId;
+      currentUserName = session.userName;
+      return true;
+    }
+    return false;
+  }
+  function clearUserFromStorage() {
+    sessionManager.clearSession();
+    currentUserId = null;
+    currentUserName = null;
+  }
+  // 登录相关元素
+  const loginOverlay = document.getElementById('loginOverlay');
+  const usernameInput = document.getElementById('usernameInput');
+  const userSuggestions = document.getElementById('userSuggestions');
+  const loginBtn = document.getElementById('loginBtn');
+  const loginBtnText = document.getElementById('loginBtnText');
+  const loginSpinner = document.getElementById('loginSpinner');
+  const manageBtn = document.getElementById('manageBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const syncUserBtn = document.getElementById('syncUserBtn');
+  const switchUserBtn = document.getElementById('switchUserBtn');
+  const switchUserOverlay = document.getElementById('switchUserOverlay');
+  const switchUsernameInput = document.getElementById('switchUsernameInput');
+  const switchLoginBtn = document.getElementById('switchLoginBtn');
+  const cancelSwitchBtn = document.getElementById('cancelSwitchBtn');
+  const recentUsersList = document.getElementById('recentUsersList');
+  const loginStatus = document.getElementById('loginStatus');
+  const currentUserInfo = document.getElementById('currentUserInfo');
+  // 显示登录状态消息
+  function showLoginStatus(message, type = 'error') {
+    loginStatus.textContent = message;
+    loginStatus.className = `login-status ${type}`;
+    loginStatus.style.display = 'block';
+    if (type === 'success') {
+      setTimeout(() => {
+        loginStatus.style.display = 'none';
+      }, 3000);
+    }
+  }
+  // 设置登录按钮状态
+  function setLoginLoading(loading) {
+    loginBtn.disabled = loading;
+    loginBtnText.style.display = loading ? 'none' : 'inline';
+    loginSpinner.style.display = loading ? 'inline-block' : 'none';
+  }
+  // 搜索用户建议
+  async function searchUsers(query) {
+    if (!query.trim()) {
+      userSuggestions.style.display = 'none';
+      return;
+    }
+    try {
+      const response = await fetch('http://localhost:8000/memory/users/active');
+      const data = await response.json();
+      if (data.success && data.active_users) {
+        const filteredUsers = data.active_users.filter(user =>
+          user.name?.toLowerCase().includes(query.toLowerCase()) ||
+          user.user_id?.toLowerCase().includes(query.toLowerCase())
+        );
+        displayUserSuggestions(filteredUsers);
+      } else {
+        userSuggestions.style.display = 'none';
+      }
+    } catch (error) {
+      console.error('搜索用户失败:', error);
+      userSuggestions.style.display = 'none';
+    }
+  }
+  // 显示用户建议列表
+  function displayUserSuggestions(users) {
+    if (users.length === 0) {
+      userSuggestions.style.display = 'none';
+      return;
+    }
+    userSuggestions.innerHTML = users.map(user => `
+                <div class="user-suggestion" onclick="selectUser('${user.user_id}', '${user.name || ''}')">
+                    <div class="suggestion-info">
+                        <div class="suggestion-name">${user.name || '未设置'}</div>
+                        <div class="suggestion-id">${user.user_id}</div>
+                    </div>
+                    <div class="suggestion-badge">已存在</div>
+                </div>
+            `).join('');
+    userSuggestions.style.display = 'block';
+  }
+  // 选择用户
+  function selectUser(userId, userName) {
+    usernameInput.value = userName || userId;
+    userSuggestions.style.display = 'none';
+    currentUserId = userId;
+    currentUserName = userName;
+  }
+  // 用户登录/创建
+  async function handleUserLogin() {
+    const username = usernameInput.value.trim();
+    if (!username) {
+      showLoginStatus('请输入用户名', 'error');
+      return;
+    }
+    setLoginLoading(true);
+    loginStatus.style.display = 'none';
+    try {
+      // 首先尝试查找现有用户
+      const searchResponse = await fetch('http://localhost:8000/memory/users/active');
+      const searchData = await searchResponse.json();
+      let existingUser = null;
+      if (searchData.success && searchData.active_users) {
+        existingUser = searchData.active_users.find(user =>
+          user.name === username || user.user_id === username
+        );
+      }
+      if (existingUser) {
+        // 使用现有用户，保存完整会话信息
+        currentUserId = existingUser.user_id;
+        currentUserName = existingUser.name;
+        sessionManager.saveSession({
+          userId: existingUser.user_id,
+          userName: existingUser.name,
+          profile: {
+            name: existingUser.name,
+            age: existingUser.age,
+            gender: existingUser.gender,
+            style: existingUser.style || '友好',
+            interests: existingUser.interests || []
+          }
+        });
+        showLoginStatus(`欢迎回来，${currentUserName}！`, 'success');
+      } else {
+        // 创建新用户
+        const userId = `user_${username.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}_${Date.now()}`;
+        const createResponse = await fetch(`http://localhost:8000/memory/user/${userId}/profile`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: username,
+            style: '友好'
+          })
+        });
+        const createData = await createResponse.json();
+        if (createData.success) {
+          currentUserId = userId;
+          currentUserName = username;
+          sessionManager.saveSession({
+            userId: userId,
+            userName: username,
+            profile: {
+              name: username,
+              style: '友好'
+            }
+          });
+          showLoginStatus(`新用户 ${username} 创建成功！`, 'success');
+        } else {
+          throw new Error(createData.error || '创建用户失败');
+        }
+      }
+      // 登录成功，隐藏登录界面
+      setTimeout(() => {
+        loginOverlay.style.display = 'none';
+        updateUserInfoDisplay();
+        // connectWebSocket();
+        updateWelcomeMessage();
+        loadSilenceTimeout(); // 加载用户的沉默时间设置
+      }, 1500);
+    } catch (error) {
+      console.error('用户登录失败:', error);
+      showLoginStatus('登录失败: ' + error.message, 'error');
+    } finally {
+      setLoginLoading(false);
+    }
+  }
+  // 更新欢迎消息
+  function updateWelcomeMessage() {
+    if (currentUserName) {
+      const welcomeMessage = `你好${currentUserName}！我是悠悠，一个18岁的动漫设计专业大一学妹～ 很高兴认识你！我对艺术创作和生活美学都很感兴趣，也喜欢和大家分享小众漫画和设计理念。有什么想聊的吗？`;
+      chatMessages.innerHTML = `
+                    <div class="message">
+                        <div class="message-wrapper">
+                            <div class="avatar bot">AI</div>
+                            <div class="message-content">${welcomeMessage}</div>
+                        </div>
+                    </div>
+                `;
+    }
+  }
+  // 打开用户管理页面
+  function openUserManagement() {
+    window.open('http://localhost:8081/profile_manager.html', '_blank');
+  }
+  // 注销用户
+  function logoutUser() {
+    // 清除本地存储的用户数据
+    clearUserFromStorage();
+    // 清空全局变量
+    currentUserId = null;
+    currentUserName = null;
+    // 断开WebSocket连接
+    if (ws) {
+      ws.close();
+      ws = null;
+    }
+    // 清空聊天记录
+    const chatMessages = document.getElementById('chatMessages');
+    if (chatMessages) {
+      chatMessages.innerHTML = '';
+    }
+    // 重置右侧面板
+    resetRightPanel();
+    // 显示登录界面
+    const loginOverlay = document.getElementById('loginOverlay');
+    if (loginOverlay) {
+      loginOverlay.style.display = 'flex';
+    }
+    // 清空用户名输入框
+    const usernameInput = document.getElementById('usernameInput');
+    if (usernameInput) {
+      usernameInput.value = '';
+    }
+    console.log('✅ 用户注销成功');
+  }
+  // 重置右侧面板
+  function resetRightPanel() {
+    // 重置用户档案信息
+    const profileDetails = document.getElementById('profileDetails');
+    if (profileDetails) {
+      profileDetails.style.display = 'none';
+    }
+    // 重置进度条
+    const progressBar = document.querySelector('.progress-bar');
+    if (progressBar) {
+      progressBar.style.width = '0%';
+    }
+    const completionText = document.getElementById('completionText');
+    if (completionText) {
+      completionText.textContent = '0%';
+    }
+    // 重置关键信息状态
+    const keyInfoItems = document.querySelectorAll('.key-info-item');
+    keyInfoItems.forEach(item => {
+      const status = item.querySelector('.status');
+      if (status) {
+        status.textContent = '未收集';
+        status.className = 'status';
+      }
+    });
+    // 重置对话阶段信息
+    const currentStage = document.getElementById('currentStage');
+    if (currentStage) {
+      currentStage.textContent = '初始化';
+    }
+    const turnCount = document.getElementById('turnCount');
+    if (turnCount) {
+      turnCount.textContent = '0';
+    }
+    const infoCompletion = document.getElementById('infoCompletion');
+    if (infoCompletion) {
+      infoCompletion.textContent = '0%';
+    }
+    // 清空记忆活动记录
+    const conversionActivity = document.getElementById('conversionActivity');
+    if (conversionActivity) {
+      conversionActivity.innerHTML = '<div class="no-data">暂无转换活动</div>';
+    }
+  }
+  // 更新侧边栏用户信息显示
+  function updateUserInfoDisplay() {
+    const userInfoDiv = document.getElementById('currentUserInfo');
+    const userNameEl = document.getElementById('currentUserName');
+    const userDetailsEl = document.getElementById('currentUserDetails');
+    if (currentUserName && currentUserId) {
+      userNameEl.textContent = currentUserName;
+      userDetailsEl.textContent = `ID: ${currentUserId}`;
+      userInfoDiv.style.display = 'block';
+      // 更新同步信息
+      updateSyncInfo();
+    } else {
+      userInfoDiv.style.display = 'none';
+    }
+  }
+  // 更新同步信息显示
+  function updateSyncInfo() {
+    const session = sessionManager.getCurrentSession();
+    const lastSyncTimeEl = document.getElementById('lastSyncTime');
+    const onlineStatusEl = document.getElementById('onlineStatus');
+    if (session) {
+      if (session.lastSync) {
+        const syncTime = new Date(session.lastSync);
+        const now = new Date();
+        const diffMinutes = Math.floor((now - syncTime) / (1000 * 60));
+        if (diffMinutes < 1) {
+          lastSyncTimeEl.textContent = '刚刚同步';
+        } else if (diffMinutes < 60) {
+          lastSyncTimeEl.textContent = `${diffMinutes}分钟前`;
+        } else {
+          const diffHours = Math.floor(diffMinutes / 60);
+          lastSyncTimeEl.textContent = `${diffHours}小时前`;
+        }
+      } else {
+        lastSyncTimeEl.textContent = '未同步';
+      }
+      // 更新在线状态
+      if (session.isOffline) {
+        onlineStatusEl.className = 'online-indicator offline';
+        onlineStatusEl.title = '离线模式';
+      } else {
+        onlineStatusEl.className = 'online-indicator online';
+        onlineStatusEl.title = '在线';
+      }
+    }
+  }
+  // 手动同步处理函数
+  async function handleManualSync() {
+    const syncBtn = document.getElementById('syncUserBtn');
+    try {
+      // 禁用按钮，显示加载状态
+      syncBtn.disabled = true;
+      syncBtn.innerHTML = '⏳ 同步中...';
+      // 执行同步
+      await sessionManager.refreshSession(true);
+      // 更新界面显示
+      updateSyncInfo();
+      updateUserInfoDisplay();
+      // 更新全局变量
+      const session = sessionManager.getCurrentSession();
+      if (session) {
+        currentUserId = session.userId;
+        currentUserName = session.userName;
+      }
+      console.log('✅ 手动同步完成');
+    } catch (error) {
+      console.error('❌ 手动同步失败:', error);
+      sessionManager.showSyncStatus('同步失败: ' + error.message, 'error');
+    } finally {
+      // 恢复按钮状态
+      syncBtn.disabled = false;
+      syncBtn.innerHTML = '🔄 同步';
+    }
+  }
+  // 智能同步检查（在后台自动执行）
+  async function performSmartSync() {
+    const session = sessionManager.getCurrentSession();
+    if (!session) return;
+    try {
+      // 检查是否需要同步
+      if (sessionManager.isSessionExpired()) {
+        console.log('🔄 会话过期，执行自动同步...');
+        await sessionManager.refreshSession(false);
+        updateSyncInfo();
+      }
+    } catch (error) {
+      console.warn('⚠️ 自动同步失败，继续使用本地缓存:', error);
+    }
+  }
+  // 显示用户切换弹窗
+  function showSwitchUserDialog() {
+    switchUserOverlay.style.display = 'flex';
+    switchUsernameInput.value = '';
+    loadRecentUsers();
+  }
+  // 隐藏用户切换弹窗
+  function hideSwitchUserDialog() {
+    switchUserOverlay.style.display = 'none';
+  }
+  // 加载最近使用的用户列表
+  async function loadRecentUsers() {
+    try {
+      recentUsersList.innerHTML = '<div class="loading-text">正在加载用户列表...</div>';
+      const response = await fetch('http://localhost:8000/memory/users/active');
+      const data = await response.json();
+      if (data.success && data.active_users && data.active_users.length > 0) {
+        // 过滤掉当前用户，按最后活跃时间排序
+        const otherUsers = data.active_users
+          .filter(user => user.user_id !== currentUserId)
+          .sort((a, b) => new Date(b.last_active) - new Date(a.last_active))
+          .slice(0, 5); // 只显示前5个用户
+        if (otherUsers.length > 0) {
+          recentUsersList.innerHTML = '';
+          otherUsers.forEach(user => {
+            const userItem = createUserItem(user);
+            recentUsersList.appendChild(userItem);
+          });
+        } else {
+          recentUsersList.innerHTML = '<div class="no-users-text">暂无其他用户</div>';
+        }
+      } else {
+        recentUsersList.innerHTML = '<div class="no-users-text">暂无其他用户</div>';
+      }
+    } catch (error) {
+      console.error('加载用户列表失败:', error);
+      recentUsersList.innerHTML = '<div class="no-users-text">加载失败，请重试</div>';
+    }
+  }
+  // 创建用户列表项
+  function createUserItem(user) {
+    const userItem = document.createElement('div');
+    userItem.className = 'user-item';
+    userItem.onclick = () => switchToUser(user);
+    const lastActive = new Date(user.last_active);
+    const now = new Date();
+    const diffMinutes = Math.floor((now - lastActive) / (1000 * 60));
+    let timeText;
+    if (diffMinutes < 1) {
+      timeText = '刚刚活跃';
+    } else if (diffMinutes < 60) {
+      timeText = `${diffMinutes}分钟前`;
+    } else {
+      const diffHours = Math.floor(diffMinutes / 60);
+      if (diffHours < 24) {
+        timeText = `${diffHours}小时前`;
+      } else {
+        const diffDays = Math.floor(diffHours / 24);
+        timeText = `${diffDays}天前`;
+      }
+    }
+    userItem.innerHTML = `
+                <div class="user-item-info">
+                    <div class="user-item-name">${user.name || '匿名用户'}</div>
+                    <div class="user-item-id">ID: ${user.user_id}</div>
+                </div>
+                <div class="user-item-time">${timeText}</div>
+            `;
+    return userItem;
+  }
+  // 切换到指定用户
+  async function switchToUser(user) {
+    try {
+      // 清空当前聊天记录
+      const chatMessages = document.getElementById('chatMessages');
+      if (chatMessages) {
+        chatMessages.innerHTML = '';
+      }
+      // 重置右侧面板
+      resetRightPanel();
+      // 断开当前WebSocket连接
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
+      // 更新用户信息
+      currentUserId = user.user_id;
+      currentUserName = user.name;
+      // 保存新用户会话
+      sessionManager.saveSession({
+        userId: user.user_id,
+        userName: user.name,
+        profile: {
+          name: user.name,
+          age: user.age,
+          gender: user.gender,
+          style: user.style || '友好',
+          interests: user.interests || []
+        }
+      });
+      // 更新界面显示
+      updateUserInfoDisplay();
+      updateWelcomeMessage();
+      // 重新连接WebSocket
+      // connectWebSocket();
+      // 隐藏切换弹窗
+      hideSwitchUserDialog();
+      console.log(`✅ 已切换到用户: ${user.name} (${user.user_id})`);
+      // 显示成功提示
+      sessionManager.showSyncStatus(`已切换到 ${user.name}`, 'success');
+    } catch (error) {
+      console.error('用户切换失败:', error);
+      sessionManager.showSyncStatus('切换用户失败: ' + error.message, 'error');
+    }
+  }
+  // 处理手动输入用户名切换
+  async function handleUserSwitch() {
+    const username = switchUsernameInput.value.trim();
+    if (!username) {
+      sessionManager.showSyncStatus('请输入用户名', 'error');
+      return;
+    }
+    try {
+      switchLoginBtn.disabled = true;
+      switchLoginBtn.textContent = '切换中...';
+      // 查找用户
+      const searchResponse = await fetch('http://localhost:8000/memory/users/active');
+      const searchData = await searchResponse.json();
+      let targetUser = null;
+      if (searchData.success && searchData.active_users) {
+        targetUser = searchData.active_users.find(user =>
+          user.name === username || user.user_id === username
+        );
+      }
+      if (targetUser) {
+        await switchToUser(targetUser);
+      } else {
+        sessionManager.showSyncStatus('用户不存在', 'error');
+      }
+    } catch (error) {
+      console.error('用户切换失败:', error);
+      sessionManager.showSyncStatus('切换失败: ' + error.message, 'error');
+    } finally {
+      switchLoginBtn.disabled = false;
+      switchLoginBtn.textContent = '🔄 切换';
+    }
+  }
+  // 事件监听器
+  usernameInput.addEventListener('input', function (e) {
+    searchUsers(e.target.value);
+  });
+  usernameInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleUserLogin();
+    }
+  });
+  loginBtn.addEventListener('click', handleUserLogin);
+  manageBtn.addEventListener('click', openUserManagement);
+  logoutBtn.addEventListener('click', logoutUser);
+  syncUserBtn.addEventListener('click', handleManualSync);
+  switchUserBtn.addEventListener('click', showSwitchUserDialog);
+  switchLoginBtn.addEventListener('click', handleUserSwitch);
+  cancelSwitchBtn.addEventListener('click', hideSwitchUserDialog);
+  // 切换用户弹窗的键盘事件
+  switchUsernameInput.addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleUserSwitch();
+    }
+  });
+  // ESC键关闭切换用户弹窗
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && switchUserOverlay.style.display === 'flex') {
+      hideSwitchUserDialog();
+    }
+  });
+  // 点击建议外部关闭建议列表
+  document.addEventListener('click', function (e) {
+    if (!usernameInput.contains(e.target) && !userSuggestions.contains(e.target)) {
+      userSuggestions.style.display = 'none';
+    }
+  });
+  document.addEventListener('DOMContentLoaded', function () {
+    // 尝试从本地存储恢复用户数据
+    if (loadUserFromStorage()) {
+      // 如果成功恢复用户数据，隐藏登录界面并连接WebSocket
+      const loginOverlay = document.getElementById('loginOverlay');
+      if (loginOverlay) {
+        loginOverlay.style.display = 'none';
+      }
+      updateUserInfoDisplay();
+      // connectWebSocket();
+      updateWelcomeMessage();
+      console.log('✅ 自动登录成功');
+      // 执行智能同步检查
+      setTimeout(() => {
+        performSmartSync();
+      }, 1000); // 延迟1秒执行，让界面先加载完成
+      // 设置定期同步检查（每10分钟检查一次）
+      setInterval(performSmartSync, 10 * 60 * 1000);
+    } else {
+      // 如果没有保存的用户数据，显示登录界面
+      const loginOverlay = document.getElementById('loginOverlay');
+      if (loginOverlay) {
+        loginOverlay.style.display = 'flex';
+      }
+      console.log('❌ 未找到保存的用户数据，显示登录界面');
+    }
+  });
+
+</script>
+

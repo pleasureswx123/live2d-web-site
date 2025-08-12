@@ -14,6 +14,9 @@ import ConversionActivity from './components/ConversionActivity'
 import UserProfile from './components/UserProfile'
 import ProactiveChatControl from './components/ProactiveChatControl'
 import SystemControl from './components/SystemControl'
+import UserInfoCard from './components/UserInfoCard'
+import LoginDialog from './components/LoginDialog'
+import SwitchUserDialog from './components/SwitchUserDialog'
 import TTSChat from './components/TTSChat'
 // 自适应窗口尺寸（含 dpr 改变时的刷新）
 function useViewport() {
@@ -109,7 +112,10 @@ const AppContent = () => {
       />
 
       <SidebarDrawer>
-        <SystemControl/>
+        <UserInfoCard/>
+        <div className="mt-6">
+          <SystemControl/>
+        </div>
         <div className="mt-6">
           <ProactiveChatControl/>
         </div>
@@ -137,6 +143,10 @@ const AppContent = () => {
           <ConversionActivity />
         </div>
       </RightDrawer>
+
+      {/* 用户认证对话框 */}
+      <LoginDialog />
+      <SwitchUserDialog />
 
     </div>
   )
