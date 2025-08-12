@@ -4,6 +4,7 @@ import {ToastProvider, useToast} from './components/ui/toast'
 import Live2DViewer from './components/Live2DViewer'
 import SettingsDrawer from './components/SettingsDrawer'
 import SidebarDrawer from './components/SidebarDrawer'
+import RightDrawer from './components/RightDrawer'
 import VoiceSelector from './components/VoiceSelector'
 import SpeedControl from './components/SpeedControl'
 import ASRSelector from './components/ASRSelector'
@@ -114,6 +115,13 @@ const AppContent = () => {
           <ConversationStage/>
         </div>
       </SidebarDrawer>
+
+      {/* 右侧抽屉组件 */}
+      <RightDrawer>
+        <div className="space-y-4">
+
+        </div>
+      </RightDrawer>
 
     </div>
   )
