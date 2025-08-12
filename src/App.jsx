@@ -10,6 +10,7 @@ import SpeedControl from './components/SpeedControl'
 import ASRSelector from './components/ASRSelector'
 import ConversationStage from './components/ConversationStage'
 import ConversationStageInfo from './components/ConversationStageInfo'
+import ConversionActivity from './components/ConversionActivity'
 import TTSChat from './components/TTSChat'
 // 自适应窗口尺寸（含 dpr 改变时的刷新）
 function useViewport() {
@@ -120,6 +121,9 @@ const AppContent = () => {
       {/* 右侧抽屉组件 */}
       <RightDrawer>
         <ConversationStageInfo />
+        <div className="mt-6">
+          <ConversionActivity />
+        </div>
       </RightDrawer>
 
     </div>
