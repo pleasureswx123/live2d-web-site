@@ -13,16 +13,6 @@ const SpeedControl = () => {
     const speed = value[0] // Radix Slider 返回数组
     setDisplaySpeed(speed)
     changeSpeed(speed)
-
-    // to do ... 发送语速调节请求到后端
-    // if (ws && ws.readyState === WebSocket.OPEN) {
-    //   ws.send(JSON.stringify({
-    //     type: 'change_speed',
-    //     speed: currentSpeed
-    //   }));
-    //   console.log(`📤 语速调节请求已发送: ${currentSpeed}`);
-    // }
-
     // 显示通知
     const speedText = getSpeedDescription(speed)
     addToast({

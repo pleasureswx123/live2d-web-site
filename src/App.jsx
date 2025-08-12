@@ -6,6 +6,7 @@ import SettingsDrawer from './components/SettingsDrawer'
 import SidebarDrawer from './components/SidebarDrawer'
 import VoiceSelector from './components/VoiceSelector'
 import SpeedControl from './components/SpeedControl'
+import ASRSelector from './components/ASRSelector'
 import TTSChat from './components/TTSChat'
 // 自适应窗口尺寸（含 dpr 改变时的刷新）
 function useViewport() {
@@ -89,6 +90,9 @@ function App() {
             <VoiceSelector/>
             <div className="mt-6">
               <SpeedControl/>
+            </div>
+            <div className="mt-6">
+              <ASRSelector/>
             </div>
           </SidebarDrawer>
 

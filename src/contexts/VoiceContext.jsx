@@ -6,6 +6,12 @@ const voiceNames = {
   'zh_female_roumeinvyou_emo_v2_mars_bigtts': '柔美女友'
 }
 
+// ASR名称映射
+const asrNames = {
+  'xfyun': '讯飞ASR',
+  'doubao': '豆包ASR'
+}
+
 // 创建 Context
 const VoiceContext = createContext()
 
@@ -13,6 +19,7 @@ const VoiceContext = createContext()
 export const VoiceProvider = ({ children }) => {
   const [currentVoice, setCurrentVoice] = useState('zh_female_meilinvyou_emo_v2_mars_bigtts')
   const [currentSpeed, setCurrentSpeed] = useState(1.2)
+  const [currentASR, setCurrentASR] = useState('xfyun')
 
   // 切换音色的方法
   const changeVoice = (voiceId) => {
@@ -39,6 +46,16 @@ export const VoiceProvider = ({ children }) => {
   const changeSpeed = (speed) => {
     setCurrentSpeed(speed)
     console.log(`🎚️ 语速已调节为: ${speed.toFixed(1)}x`)
+
+    // to do ... 发送语速调节请求到后端
+    // if (ws && ws.readyState === WebSocket.OPEN) {
+    //   ws.send(JSON.stringify({
+    //     type: 'change_speed',
+    //     speed: currentSpeed
+    //   }));
+    //   console.log(`📤 语速调节请求已发送: ${currentSpeed}`);
+    // }
+
   }
 
   // 获取语速描述
@@ -52,6 +69,27 @@ export const VoiceProvider = ({ children }) => {
     }
   }
 
+  // 切换ASR的方法
+  const changeASR = (asrId) => {
+    setCurrentASR(asrId)
+    const asrName = asrNames[asrId] || '未知ASR'
+    console.log(`🎤 ASR已切换为: ${asrName} (${asrId})`)
+
+    // to do ... 发送ASR切换请求到后端
+    // if (ws && ws.readyState === WebSocket.OPEN) {
+    //   ws.send(JSON.stringify({
+    //     type: 'change_asr',
+    //     asr_type: currentASR
+    //   }));
+    //   console.log(`📤 ASR切换请求已发送: ${currentASR}`);
+    // }
+  }
+
+  // 获取当前ASR名称
+  const getCurrentASRName = () => {
+    return asrNames[currentASR] || '未知ASR'
+  }
+
   const value = {
     currentVoice,
     voiceNames,
@@ -59,7 +97,11 @@ export const VoiceProvider = ({ children }) => {
     getCurrentVoiceName,
     currentSpeed,
     changeSpeed,
-    getSpeedDescription
+    getSpeedDescription,
+    currentASR,
+    asrNames,
+    changeASR,
+    getCurrentASRName
   }
 
   return (
