@@ -303,6 +303,15 @@ export const WebSocketProvider = ({ children }) => {
     }
   }
 
+  // 音频播放相关的状态变量
+  const currentAudioRef = useRef(null)
+  const currentAudioElementsRef = useRef([])
+  const expectedOrderRef = useRef(1)
+  const orderedAudioBufferRef = useRef(new Map())
+  const audioQueueRef = useRef([])
+  const isPlayingQueueRef = useRef(false)
+  const isTTSGenerationCompleteRef = useRef(false)
+
   // 占位函数 - 这些函数需要根据实际的聊天组件来实现
   const stopProactiveChatTimer = () => {
     console.log('🔄 停止主动对话定时器 - 待实现')
@@ -340,24 +349,330 @@ export const WebSocketProvider = ({ children }) => {
 
 
 
-  const playTTSAudio = (audioData, format) => {
-    console.log('🎵 播放TTS音频 - 待实现')
+  // 显示音频播放按钮（当自动播放被阻止时）
+  const showAudioPlayButton = (audioUrl) => {
+    console.log('🔘 显示音频播放按钮 - 需要用户交互')
+    // 这里可以显示一个播放按钮让用户手动播放
+    // 实际实现可能需要更新UI状态
+  }
+
+  // 处理有序音频缓冲区
+  const processOrderedAudioBuffer = () => {
+    const orderedAudioBuffer = orderedAudioBufferRef.current
+    const audioQueue = audioQueueRef.current
+    const expectedOrder = expectedOrderRef.current
+
+    console.log(`🎵 处理有序音频缓冲区，期望顺序: ${expectedOrder}`)
+
+    // 检查是否有期望顺序的音频片段
+    while (orderedAudioBuffer.has(expectedOrder)) {
+      const audioChunk = orderedAudioBuffer.get(expectedOrder)
+      orderedAudioBuffer.delete(expectedOrder)
+
+      // 将音频片段添加到播放队列
+      audioQueue.push(audioChunk)
+      console.log(`🎵 音频片段 #${expectedOrder} 已加入播放队列`)
+
+      // 更新期望顺序
+      expectedOrderRef.current = expectedOrder + 1
+
+      // 如果没有在播放，开始播放队列
+      if (!isPlayingQueueRef.current) {
+        console.log('🎵 开始播放音频队列...')
+        playAudioQueue()
+      }
+    }
+  }
+
+  // 播放音频队列
+  const playAudioQueue = () => {
+    const audioQueue = audioQueueRef.current
+
+    if (audioQueue.length === 0) {
+      console.log('🎵 音频队列为空，停止播放')
+      isPlayingQueueRef.current = false
+      return
+    }
+
+    if (isPlayingQueueRef.current) {
+      console.log('🎵 音频队列正在播放中，跳过重复调用')
+      return
+    }
+
+    isPlayingQueueRef.current = true
+    console.log('🎵 开始播放音频队列，队列长度:', audioQueue.length)
+
+    const playNextAudio = () => {
+      if (audioQueue.length === 0) {
+        console.log('🎵 音频队列播放完成')
+        isPlayingQueueRef.current = false
+        checkAllAudioPlaybackComplete()
+        return
+      }
+
+      const audioChunk = audioQueue.shift()
+      console.log('🎵 播放下一个音频片段，剩余队列长度:', audioQueue.length)
+
+      try {
+        // 使用基础播放函数播放音频
+        playTTSAudioBase(audioChunk.data, audioChunk.format, playNextAudio)
+      } catch (error) {
+        console.error('❌ 播放音频片段失败:', error)
+        // 继续播放下一个
+        playNextAudio()
+      }
+    }
+
+    playNextAudio()
+  }
+
+  // 检查所有音频播放是否完成
+  const checkAllAudioPlaybackComplete = () => {
+    const audioQueue = audioQueueRef.current
+    const orderedAudioBuffer = orderedAudioBufferRef.current
+    const isTTSGenerationComplete = isTTSGenerationCompleteRef.current
+
+    console.log('🎵 检查音频播放完成状态:', {
+      queueLength: audioQueue.length,
+      bufferSize: orderedAudioBuffer.size,
+      ttsComplete: isTTSGenerationComplete,
+      isPlaying: isPlayingQueueRef.current
+    })
+
+    if (audioQueue.length === 0 && orderedAudioBuffer.size === 0 &&
+        isTTSGenerationComplete && !isPlayingQueueRef.current) {
+      console.log('✅ 所有音频播放完成')
+      // 可以在这里添加完成回调
+    }
+  }
+
+  // 基础音频播放函数（不会导致递归调用）
+  const playTTSAudioBase = (audioBase64, format = 'mp3', onComplete = null) => {
+    try {
+      console.log('🔊 开始处理TTS音频数据:', {
+        format: format,
+        base64Length: audioBase64.length,
+        base64Sample: audioBase64.substring(0, 50) + '...'
+      })
+
+      // 停止当前播放的音频
+      if (currentAudioRef.current) {
+        console.log('⏹️ 停止当前播放的音频')
+        currentAudioRef.current.pause()
+        currentAudioRef.current = null
+      }
+
+      // 将Base64数据转换为Blob
+      console.log('🔄 开始Base64解码...')
+      const binaryString = atob(audioBase64)
+      console.log('✅ Base64解码完成，二进制长度:', binaryString.length)
+
+      const bytes = new Uint8Array(binaryString.length)
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
+      }
+
+      console.log('🗂️ 创建音频Blob...')
+      const blob = new Blob([bytes], {type: `audio/${format}`})
+      console.log('✅ Blob创建完成:', {
+        size: blob.size,
+        type: blob.type
+      })
+
+      const audioUrl = URL.createObjectURL(blob)
+      console.log('🔗 音频URL创建完成:', audioUrl)
+
+      // 创建音频元素并播放
+      const audio = new Audio(audioUrl)
+      audio.volume = 0.8 // 设置音量
+      currentAudioRef.current = audio
+
+      // 添加到跟踪列表
+      currentAudioElementsRef.current.push(audio)
+
+      audio.onloadstart = () => {
+        console.log('音频开始加载...')
+      }
+
+      audio.oncanplay = () => {
+        console.log('音频可以播放，开始播放...')
+      }
+
+      audio.onplay = () => {
+        console.log('音频开始播放')
+      }
+
+      audio.onended = () => {
+        console.log('音频播放完成')
+        URL.revokeObjectURL(audioUrl) // 清理URL对象
+
+        // 从跟踪列表中移除
+        const index = currentAudioElementsRef.current.indexOf(audio)
+        if (index > -1) {
+          currentAudioElementsRef.current.splice(index, 1)
+        }
+
+        if (currentAudioRef.current === audio) {
+          currentAudioRef.current = null
+        }
+
+        // 调用完成回调
+        if (onComplete) {
+          onComplete()
+        }
+      }
+
+      audio.onerror = (e) => {
+        console.error('音频播放错误:', e)
+        URL.revokeObjectURL(audioUrl)
+
+        // 从跟踪列表中移除
+        const index = currentAudioElementsRef.current.indexOf(audio)
+        if (index > -1) {
+          currentAudioElementsRef.current.splice(index, 1)
+        }
+
+        if (currentAudioRef.current === audio) {
+          currentAudioRef.current = null
+        }
+
+        // 调用完成回调（即使出错也要继续）
+        if (onComplete) {
+          onComplete()
+        }
+      }
+
+      // 播放音频
+      audio.play().catch(error => {
+        console.error('播放音频失败:', error)
+        // 如果自动播放失败，可能是由于浏览器的自动播放策略
+        if (error.name === 'NotAllowedError') {
+          console.log('浏览器阻止了自动播放，需要用户交互后才能播放')
+          // 可以显示一个播放按钮让用户手动播放
+          showAudioPlayButton(audioUrl)
+        }
+
+        // 调用完成回调
+        if (onComplete) {
+          onComplete()
+        }
+      })
+    } catch (error) {
+      console.error('处理TTS音频数据失败:', error)
+      if (onComplete) {
+        onComplete()
+      }
+    }
+  }
+
+  // 主要的音频播放函数（用于单独播放）
+  const playTTSAudio = (audioBase64, format = 'mp3') => {
+    playTTSAudioBase(audioBase64, format)
+  }
+
+  // 带顺序号的流式TTS音频播放功能
+  const playTTSAudioChunkWithOrder = (audioBase64, format = 'mp3', order = 0) => {
+    try {
+      console.log('🎵 处理带顺序号的音频片段:', {
+        order: order,
+        expectedOrder: expectedOrderRef.current,
+        format: format,
+        base64Length: audioBase64.length,
+        bufferSize: orderedAudioBufferRef.current.size
+      })
+
+      // 验证base64数据
+      if (!audioBase64 || audioBase64.length === 0) {
+        console.error('❌ 音频数据为空')
+        return
+      }
+
+      // 存储音频片段到有序缓冲区
+      orderedAudioBufferRef.current.set(order, {
+        data: audioBase64,
+        format: format
+      })
+      console.log(`🎵 音频片段 #${order} 已存储到缓冲区`)
+
+      // 尝试播放按顺序排列的音频片段
+      processOrderedAudioBuffer()
+    } catch (error) {
+      console.error('❌ 处理带顺序号的TTS音频片段失败:', error)
+    }
+  }
+
+  // 流式TTS音频播放功能（兼容旧版本）
+  const playTTSAudioChunk = (audioBase64, format = 'mp3') => {
+    try {
+      console.log('🎵 处理流式音频片段:', {
+        format: format,
+        base64Length: audioBase64.length,
+        isValidBase64: /^[A-Za-z0-9+/]*={0,2}$/.test(audioBase64),
+        currentQueueLength: audioQueueRef.current.length,
+        isCurrentlyPlaying: isPlayingQueueRef.current
+      })
+
+      // 验证base64数据
+      if (!audioBase64 || audioBase64.length === 0) {
+        console.error('❌ 音频数据为空')
+        return
+      }
+
+      // 将音频片段添加到队列
+      audioQueueRef.current.push({
+        data: audioBase64,
+        format: format
+      })
+      console.log('🎵 音频片段已加入队列，当前队列长度:', audioQueueRef.current.length)
+
+      // 如果没有在播放，开始播放队列
+      if (!isPlayingQueueRef.current) {
+        console.log('🎵 开始播放音频队列...')
+        playAudioQueue()
+      } else {
+        console.log('🎵 音频队列正在播放中，片段已排队')
+      }
+    } catch (error) {
+      console.error('❌ 处理流式TTS音频片段失败:', error)
+    }
+  }
+
+  // TTS完成处理
+  const onTTSComplete = () => {
+    console.log('🎵 TTS生成完成，队列中还有', audioQueueRef.current.length, '个音频片段，缓冲区还有', orderedAudioBufferRef.current.size, '个片段')
+
+    // 处理剩余的缓冲区音频（防止有遗漏的片段）
+    if (orderedAudioBufferRef.current.size > 0) {
+      console.log('🎵 处理缓冲区中剩余的音频片段...')
+      // 按顺序处理剩余的音频片段
+      const remainingOrders = Array.from(orderedAudioBufferRef.current.keys()).sort((a, b) => a - b)
+      for (const order of remainingOrders) {
+        const audioChunk = orderedAudioBufferRef.current.get(order)
+        orderedAudioBufferRef.current.delete(order)
+        audioQueueRef.current.push(audioChunk)
+        console.log(`🎵 将缓冲区音频片段 #${order} 加入播放队列`)
+      }
+
+      // 如果没有在播放，开始播放队列
+      if (!isPlayingQueueRef.current && audioQueueRef.current.length > 0) {
+        console.log('🎵 开始播放剩余音频队列...')
+        playAudioQueue()
+      }
+    }
+
+    // 重置顺序号，为下次对话做准备
+    expectedOrderRef.current = 1
+    console.log('🎵 已重置音频顺序号，准备下次对话')
+
+    // 标记TTS生成已完成
+    isTTSGenerationCompleteRef.current = true
+
+    // 检查是否所有音频都播放完成
+    checkAllAudioPlaybackComplete()
   }
 
   const recordTTSFirstPacket = () => {
     console.log('⏱️ 记录TTS首包回复时间 - 待实现')
-  }
-
-  const playTTSAudioChunkWithOrder = (audioData, format, order) => {
-    console.log('🎵 播放有序TTS音频片段 - 待实现')
-  }
-
-  const playTTSAudioChunk = (audioData, format) => {
-    console.log('🎵 播放TTS音频片段 - 待实现')
-  }
-
-  const onTTSComplete = () => {
-    console.log('🎵 TTS完成 - 待实现')
   }
 
   const updateProfileActivity = (activityInfo) => {
