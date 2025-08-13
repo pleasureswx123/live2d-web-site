@@ -6,7 +6,7 @@ import { Paperclip, Upload, Loader2 } from 'lucide-react'
 
 /**
  * 文件上传按钮组件
- * 
+ *
  * @param {Object} props - 组件属性
  * @param {string} props.className - 额外的CSS类名
  * @param {string} props.variant - 按钮变体样式
@@ -35,7 +35,7 @@ const FileUploadButton = ({
   ...props
 }) => {
   const fileInputRef = useRef(null)
-  
+
   const {
     selectFile,
     updateConfig,
@@ -50,7 +50,7 @@ const FileUploadButton = ({
     if (acceptedTypes) updates.acceptedTypes = acceptedTypes
     if (maxFileSize) updates.maxFileSize = maxFileSize
     if (allowMultiple !== undefined) updates.allowMultiple = allowMultiple
-    
+
     if (Object.keys(updates).length > 0) {
       updateConfig(updates)
     }
@@ -86,7 +86,7 @@ const FileUploadButton = ({
       const file = files[0] // 目前只支持单文件
       selectFile(file)
     }
-    
+
     // 清空input值，允许重复选择同一文件
     event.target.value = ''
   }
@@ -103,7 +103,7 @@ const FileUploadButton = ({
     if (ui.isUploading) {
       return <Loader2 className="w-4 h-4 animate-spin" />
     }
-    
+
     switch (icon) {
       case 'upload':
         return <Upload className="w-4 h-4" />
@@ -118,11 +118,11 @@ const FileUploadButton = ({
     if (ui.isUploading) {
       return `上传中... ${ui.uploadProgress}%`
     }
-    
-    if (children) {
-      return children
-    }
-    
+
+    // if (children) {
+    //   return children
+    // }
+
     return '附件'
   }
 
@@ -143,7 +143,7 @@ const FileUploadButton = ({
       >
         {getIcon()}
         <span className="ml-2">{getButtonText()}</span>
-        
+
         {/* 上传进度指示器 */}
         {ui.isUploading && (
           <div className="absolute bottom-0 left-0 h-1 bg-primary rounded-b-md transition-all duration-300"

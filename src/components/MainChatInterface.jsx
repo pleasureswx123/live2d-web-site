@@ -1,0 +1,440 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { useWebSocket } from '../contexts/WebSocketContext'
+import { useChatMessagesStore } from '../stores/chatMessagesStore'
+import { useTypingIndicatorStore } from '../stores/typingIndicatorStore'
+import { useFileUploadStore } from '../stores/fileUploadStore'
+import { useASRStore } from '../stores/asrStore'
+import { ChatHeader } from './ChatHeader'
+import { ChatMessages } from './ChatMessages'
+import { TypingIndicator } from './TypingIndicator'
+import { FileUploadButton, FilePreview } from './FileUpload'
+import ASRChatIntegration from './ASR/ASRChatIntegration'
+import { Button } from './ui/button'
+import { Textarea } from './ui/textarea'
+import { Send, Paperclip, Mic, MicOff } from 'lucide-react'
+
+/**
+ * 主聊天界面组件
+ * 整合所有聊天相关功能的核心组件
+ */
+const MainChatInterface = ({
+  className = '',
+  enableSearch = true,
+  enableFileUpload = true,
+  enableASR = true,
+  maxMessageLength = 1000,
+  placeholder = "发送消息给悠悠...",
+  onError,
+  onNotification,
+  ...props
+}) => {
+  // 状态管理
+  const [message, setMessage] = useState('')
+  const [isComposing, setIsComposing] = useState(false)
+  const [isSending, setIsSending] = useState(false)
+
+  // Refs
+  const textareaRef = useRef(null)
+  const chatContainerRef = useRef(null)
+
+  // Stores
+  const { sendMessage, connectionStatus } = useWebSocket()
+  const {
+    messages,
+    addUserMessage,
+    scrollToBottom,
+    showSearchIndicator,
+    hideSearchIndicator
+  } = useChatMessagesStore()
+  const { isVisible: isTypingVisible } = useTypingIndicatorStore()
+  const {
+    files,
+    ui: fileUI,
+    selectFile,
+    removeFile,
+    startUpload
+  } = useFileUploadStore()
+
+  const selectedFile = files.current
+  const isUploading = fileUI.isUploading
+  const uploadProgress = fileUI.uploadProgress
+  const {
+    recording,
+    startContinuousASR,
+    stopContinuousASR
+  } = useASRStore()
+
+  // 搜索关键词配置
+  const searchKeywords = ['搜索', '查找', '查询', '最新', '现在', '今天', '新闻', '什么是', '怎么样', '如何']
+  const timeKeywords = ['现在', '今天', '几号', '时间', '日期']
+  const newsKeywords = ['新闻', '最新', '热点', '时事']
+
+  // 检测是否需要搜索
+  const shouldTriggerSearch = useCallback((text) => {
+    if (!enableSearch || !text) return false
+
+    const hasSearchKeyword = searchKeywords.some(keyword => text.includes(keyword))
+    const isTimeQuery = timeKeywords.some(keyword => text.includes(keyword))
+    const isNewsQuery = newsKeywords.some(keyword => text.includes(keyword))
+
+    return hasSearchKeyword || isTimeQuery || isNewsQuery
+  }, [enableSearch])
+
+  // 停止所有TTS音频
+  const stopAllTTSAudio = useCallback(() => {
+    console.log('🛑 打断所有TTS播放')
+
+    // 触发自定义事件通知音频管理器停止播放
+    const event = new CustomEvent('stopAllTTS')
+    window.dispatchEvent(event)
+
+    // 同时调用WebSocket上下文的音频停止方法
+    try {
+      // 停止当前播放的音频
+      const audioElements = document.querySelectorAll('audio')
+      audioElements.forEach(audio => {
+        if (!audio.paused) {
+          audio.pause()
+          audio.currentTime = 0
+        }
+      })
+
+      // 清空音频队列（通过全局事件）
+      window.dispatchEvent(new CustomEvent('clearAudioQueue'))
+
+    } catch (error) {
+      console.error('停止TTS音频时出错:', error)
+    }
+  }, [])
+
+  // 自动调整textarea高度
+  const autoResizeTextarea = useCallback(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px'
+    }
+  }, [])
+
+  // 处理输入变化
+  const handleInputChange = (e) => {
+    setMessage(e.target.value)
+    autoResizeTextarea()
+  }
+
+  // 处理键盘事件
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
+      e.preventDefault()
+      handleSendMessage()
+    }
+  }
+
+  // 处理文件选择
+  const handleFileSelect = (file) => {
+    console.log('📎 选择文件:', file.name)
+    const success = selectFile(file)
+    if (success && onNotification) {
+      onNotification(`已选择文件: ${file.name}`, 'info')
+    }
+  }
+
+  // 处理文件上传
+  const handleFileUpload = async (file) => {
+    try {
+      // 使用实际的上传函数
+      const uploadFunction = async (file, progressCallback) => {
+        const formData = new FormData()
+        formData.append('file', file)
+
+        const endpoint = file.type.startsWith('image/') ? '/upload/image' : '/upload/file'
+
+        const response = await fetch(`http://localhost:8000${endpoint}`, {
+          method: 'POST',
+          body: formData
+        })
+
+        const result = await response.json()
+
+        if (result.success) {
+          return {
+            url: `http://localhost:8000${result.file_url}`,
+            ...result
+          }
+        } else {
+          throw new Error(result.error || '上传失败')
+        }
+      }
+
+      const success = await startUpload(uploadFunction)
+
+      if (success) {
+        const fileInfo = files.current
+        console.log('✅ 文件上传成功:', fileInfo.uploadResult?.url)
+        return fileInfo.uploadResult?.url
+      }
+    } catch (error) {
+      console.error('❌ 文件上传失败:', error)
+      if (onError) onError('文件上传失败')
+      throw error
+    }
+  }
+
+  // 发送消息
+  const handleSendMessage = async () => {
+    const trimmedMessage = message.trim()
+
+    // 验证消息内容
+    if (!trimmedMessage && !selectedFile) {
+      return
+    }
+
+    // 检查连接状态
+    if (connectionStatus !== 'connected') {
+      if (onError) onError('连接已断开，请等待重连...')
+      return
+    }
+
+    setIsSending(true)
+
+    try {
+      // 打断当前TTS播放
+      stopAllTTSAudio()
+
+      // 准备消息数据
+      const messageData = {
+        type: 'chat',
+        content: trimmedMessage || ''
+      }
+
+      // 检测搜索需求
+      if (shouldTriggerSearch(trimmedMessage)) {
+        messageData.search_query = trimmedMessage
+        showSearchIndicator(trimmedMessage)
+      }
+
+      // 处理文件上传（简化版本）
+      if (selectedFile) {
+        try {
+          const fileUrl = await handleFileUpload(selectedFile)
+          if (fileUrl) {
+            messageData.image_url = fileUrl
+          }
+        } catch (error) {
+          console.error('文件上传失败，继续发送文字消息:', error)
+        }
+      }
+
+      // 显示用户消息
+      addUserMessage(trimmedMessage, selectedFile)
+
+      // 发送WebSocket消息
+      const success = sendMessage(messageData)
+      if (!success) {
+        throw new Error('WebSocket消息发送失败')
+      }
+
+      // 清空输入
+      setMessage('')
+      if (selectedFile) {
+        removeFile()
+      }
+      autoResizeTextarea()
+
+      // 滚动到底部
+      setTimeout(scrollToBottom, 100)
+
+      if (onNotification) {
+        onNotification('消息已发送', 'success')
+      }
+
+    } catch (error) {
+      console.error('❌ 发送消息失败:', error)
+      if (onError) onError('发送消息失败')
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  // 处理ASR消息发送
+  const handleASRMessage = async (messageData) => {
+    console.log('🎤 ASR消息:', messageData)
+
+    if (!messageData.text) return
+
+    try {
+      // 打断当前TTS播放
+      stopAllTTSAudio()
+
+      // 准备消息数据
+      const asrMessageData = {
+        type: 'chat',
+        content: messageData.text
+      }
+
+      // 检测搜索需求
+      if (shouldTriggerSearch(messageData.text)) {
+        asrMessageData.search_query = messageData.text
+        showSearchIndicator(messageData.text)
+      }
+
+      // 显示用户消息
+      addUserMessage(messageData.text)
+
+      // 发送WebSocket消息
+      const success = sendMessage(asrMessageData)
+      if (!success) {
+        throw new Error('WebSocket消息发送失败')
+      }
+
+      // 滚动到底部
+      setTimeout(scrollToBottom, 100)
+
+      if (onNotification) {
+        onNotification('语音消息已发送', 'success')
+      }
+
+    } catch (error) {
+      console.error('❌ ASR消息发送失败:', error)
+      if (onError) onError('ASR消息发送失败')
+    }
+  }
+
+  // 组件挂载时的初始化
+  useEffect(() => {
+    autoResizeTextarea()
+  }, [])
+
+  // 监听消息变化，自动滚动
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages.length])
+
+  return (
+    <div
+      className={`main-chat-interface flex flex-col h-full bg-background ${className}`}
+      {...props}
+    >
+      {/* 聊天头部 */}
+      <div className="flex-shrink-0 border-b">
+        <ChatHeader />
+      </div>
+
+      {/* 聊天消息区域 */}
+      <div
+        ref={chatContainerRef}
+        className="flex-1 overflow-hidden"
+      >
+        <ChatMessages className="h-full" />
+      </div>
+
+      {/* 打字指示器 */}
+      {isTypingVisible && (
+        <div className="flex-shrink-0 px-4 py-2 border-t bg-muted/30">
+          <TypingIndicator />
+        </div>
+      )}
+
+      {/* 输入区域 */}
+      <div className="flex-shrink-0 border-t bg-background">
+        <div className="p-4 space-y-3">
+          {/* 文件预览 */}
+          {selectedFile && (
+            <FilePreview
+              file={selectedFile}
+              onRemove={removeFile}
+            />
+          )}
+
+          {/* ASR集成 */}
+          {enableASR && (
+            <ASRChatIntegration
+              chatId="main-chat"
+              onSendMessage={handleASRMessage}
+              onError={onError}
+              onNotification={onNotification}
+              className="mb-2"
+            />
+          )}
+
+          {/* 输入框区域 */}
+          <div className="flex items-end space-x-2">
+            {/* 文件上传按钮 */}
+            {enableFileUpload && (
+              <FileUploadButton
+                onFileSelect={handleFileSelect}
+                disabled={isSending || isUploading}
+              >
+                <Paperclip className="w-4 h-4" />
+              </FileUploadButton>
+            )}
+
+            {/* 消息输入框 */}
+            <div className="flex-1 relative">
+              <Textarea
+                ref={textareaRef}
+                value={message}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                onCompositionStart={() => setIsComposing(true)}
+                onCompositionEnd={() => setIsComposing(false)}
+                placeholder={placeholder}
+                maxLength={maxMessageLength}
+                rows={1}
+                className="min-h-[40px] max-h-[120px] resize-none pr-12"
+                disabled={isSending}
+              />
+
+              {/* 字符计数 */}
+              <div className="absolute bottom-1 right-1 text-xs text-muted-foreground">
+                {message.length}/{maxMessageLength}
+              </div>
+            </div>
+
+            {/* ASR快捷按钮 */}
+            {enableASR && (
+              <Button
+                variant={recording.isContinuousMode ? "default" : "ghost"}
+                size="sm"
+                onClick={recording.isContinuousMode ? stopContinuousASR : startContinuousASR}
+                disabled={isSending}
+                className="flex-shrink-0"
+              >
+                {recording.isContinuousMode ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              </Button>
+            )}
+
+            {/* 发送按钮 */}
+            <Button
+              onClick={handleSendMessage}
+              disabled={(!message.trim() && !selectedFile) || isSending || connectionStatus !== 'connected'}
+              className="flex-shrink-0"
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {/* 状态提示 */}
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <div>
+              {connectionStatus !== 'connected' && (
+                <span className="text-red-500">
+                  {connectionStatus === 'connecting' ? '正在连接...' : '连接已断开'}
+                </span>
+              )}
+              {recording.isRecording && (
+                <span className="text-blue-500 ml-2">
+                  🎤 录音中...
+                </span>
+              )}
+            </div>
+            <div>
+              长按空格键进行语音输入
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default MainChatInterface

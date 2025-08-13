@@ -21,6 +21,7 @@ import LoginDialog from './components/LoginDialog'
 import SwitchUserDialog from './components/SwitchUserDialog'
 import TTSChat from './components/TTSChat'
 import WebSocketStatus from './components/WebSocketStatus'
+import WorkingChatInterface from './components/WorkingChatInterface'
 // 自适应窗口尺寸（含 dpr 改变时的刷新）
 function useViewport() {
   const getSize = () => ({
@@ -112,9 +113,22 @@ const AppContent = () => {
         className="absolute inset-0"
       />
 
-      {currentModel && pixiApp && (
-        <TTSChat model={currentModel} app={pixiApp} wsUrl={"ws://localhost:8000/tts"}/>
-      )}
+      {/* 主聊天界面 */}
+      <div className="absolute top-4 right-4 w-96 h-[calc(100vh-2rem)] z-10">
+        <WorkingChatInterface
+          enableSearch={true}
+          enableFileUpload={true}
+          enableASR={true}
+          onError={(error) => console.error('聊天错误:', error)}
+          onNotification={(message, type) => console.log('聊天通知:', message, type)}
+          className="h-full bg-white/95 backdrop-blur-sm rounded-lg shadow-xl border"
+        />
+      </div>
+
+      {/* 保留原有的TTS聊天组件（用于Live2D集成） */}
+      {/*{currentModel && pixiApp && (*/}
+      {/*  <TTSChat model={currentModel} app={pixiApp} wsUrl={"ws://localhost:8000/tts"}/>*/}
+      {/*)}*/}
 
       <SettingsDrawer
         model={currentModel}

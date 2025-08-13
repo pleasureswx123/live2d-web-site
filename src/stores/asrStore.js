@@ -207,7 +207,7 @@ export const useASRStore = create((set, get) => ({
     if (text.length < config.autoSendThreshold) return false
 
     // 检查是否包含语音命令
-    if (config.enableVoiceCommands && isVoiceCommand(text)) return false
+    if (config.enableVoiceCommands && get().isVoiceCommand(text)) return false
 
     return true
   },

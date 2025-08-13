@@ -705,16 +705,61 @@ export const WebSocketProvider = ({ children }) => {
     console.log('💬 追加机器人消息 - 待实现')
   }
 
-  // 定期检查音频状态
+  // 监听全局音频停止事件
   useEffect(() => {
+    const handleStopAllTTS = () => {
+      console.log('🛑 收到全局停止TTS事件')
+
+      // 停止当前播放的音频
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause()
+        currentAudioRef.current.currentTime = 0
+        currentAudioRef.current = null
+      }
+
+      // 停止所有音频元素
+      currentAudioElementsRef.current.forEach((audio) => {
+        if (audio && !audio.paused) {
+          audio.pause()
+          audio.currentTime = 0
+        }
+      })
+      currentAudioElementsRef.current = []
+
+      // 清空音频队列
+      audioQueueRef.current = []
+      orderedAudioBufferRef.current.clear()
+
+      // 重置播放状态
+      isPlayingQueueRef.current = false
+      expectedOrderRef.current = 1
+      isTTSGenerationCompleteRef.current = false
+
+      console.log('✅ 全局TTS停止完成')
+    }
+
+    const handleClearAudioQueue = () => {
+      console.log('🗑️ 收到清空音频队列事件')
+      audioQueueRef.current = []
+      orderedAudioBufferRef.current.clear()
+      isPlayingQueueRef.current = false
+    }
+
+    // 定期检查音频状态
     const checkAudioStatus = () => {
       showAudioStatus()
     }
+
+    // 注册事件监听器
+    window.addEventListener('stopAllTTS', handleStopAllTTS)
+    window.addEventListener('clearAudioQueue', handleClearAudioQueue)
 
     // 每30秒检查一次音频状态
     const interval = setInterval(checkAudioStatus, 30000)
 
     return () => {
+      window.removeEventListener('stopAllTTS', handleStopAllTTS)
+      window.removeEventListener('clearAudioQueue', handleClearAudioQueue)
       clearInterval(interval)
     }
   }, [])

@@ -9,4 +9,4 @@ export { default as SearchIndicator } from './SearchIndicator'
 export { useChatMessagesStore } from '../../stores/chatMessagesStore'
 
 // 示例组件
-export { default as ChatMessagesExample } from './ChatMessagesExample'
+// export { default as ChatMessagesExample } from './ChatMessagesExample'
