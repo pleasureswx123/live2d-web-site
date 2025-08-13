@@ -301,18 +301,17 @@ export const WebSocketProvider = ({ children }) => {
   }
 
   const syncCurrentTTSSettings = () => {
-    // currentVoice, currentSpeed
-    console.log('🔄 同步TTS设置 - 待实现')
-
+    console.log('🔄 同步TTS设置到后端:', {voice: currentVoice, speed: currentSpeed});
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(message))
-      console.log('📤 WebSocket消息已发送:', message)
-      return true
+      wsRef.current.send(JSON.stringify({
+        type: 'sync_tts_settings',
+        voice: currentVoice,
+        speed: currentSpeed
+      }));
+      console.log('📤 TTS设置同步请求已发送');
     } else {
-      console.warn('⚠️ WebSocket未连接，无法发送消息')
-      return false
+      console.log('⚠️ WebSocket未连接，无法同步TTS设置');
     }
-
   }
 
   const showSearchIndicator = (query) => {
