@@ -1,5 +1,6 @@
 import {useState, useEffect, useRef} from 'react'
 import {VoiceProvider, useVoice} from './contexts/VoiceContext'
+import {WebSocketProvider} from './contexts/WebSocketContext'
 import {ToastProvider, useToast} from './components/ui/toast'
 import {useUserAuthStore} from './stores/userAuthStore'
 import Live2DViewer from './components/Live2DViewer'
@@ -19,6 +20,7 @@ import UserInfoCard from './components/UserInfoCard'
 import LoginDialog from './components/LoginDialog'
 import SwitchUserDialog from './components/SwitchUserDialog'
 import TTSChat from './components/TTSChat'
+import WebSocketStatus from './components/WebSocketStatus'
 // 自适应窗口尺寸（含 dpr 改变时的刷新）
 function useViewport() {
   const getSize = () => ({
@@ -125,6 +127,9 @@ const AppContent = () => {
       <SidebarDrawer>
         <UserInfoCard/>
         <div className="mt-6">
+          <WebSocketStatus/>
+        </div>
+        <div className="mt-6">
           <SystemControl/>
         </div>
         <div className="mt-6">
@@ -166,9 +171,11 @@ const AppContent = () => {
 function App() {
   return (
     <VoiceProvider>
-      <ToastProvider>
-        <AppContent/>
-      </ToastProvider>
+      <WebSocketProvider>
+        <ToastProvider>
+          <AppContent/>
+        </ToastProvider>
+      </WebSocketProvider>
     </VoiceProvider>
   )
 }

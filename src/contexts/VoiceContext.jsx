@@ -66,6 +66,9 @@ export const VoiceProvider = ({ children }) => {
     }
   }
 
+  // WebSocket 引用
+  const [wsRef, setWsRef] = useState(null)
+
   // 切换音色的方法
   const changeVoice = (voiceId) => {
     setCurrentVoice(voiceId)
@@ -75,14 +78,14 @@ export const VoiceProvider = ({ children }) => {
     // 显示通知
     showNotification('音色切换', `音色已切换为: ${voiceName}`)
 
-    // to do 后续后完善，发送音色切换请求到后端
-    // if (ws && ws.readyState === WebSocket.OPEN) {
-    //   ws.send(JSON.stringify({
-    //     type: 'change_voice',
-    //     voice: currentVoice
-    //   }));
-    //   console.log(`📤 音色切换请求已发送: ${currentVoice}`);
-    // }
+    // 发送音色切换请求到后端
+    if (wsRef && wsRef.readyState === WebSocket.OPEN) {
+      wsRef.send(JSON.stringify({
+        type: 'change_voice',
+        voice: voiceId
+      }));
+      console.log(`📤 音色切换请求已发送: ${voiceId}`);
+    }
   }
 
   // 获取当前音色名称
@@ -99,14 +102,14 @@ export const VoiceProvider = ({ children }) => {
     const speedText = getSpeedDescription(speed)
     showNotification('语速调节', `语速已调节为: ${speed.toFixed(1)}x (${speedText})`)
 
-    // to do ... 发送语速调节请求到后端
-    // if (ws && ws.readyState === WebSocket.OPEN) {
-    //   ws.send(JSON.stringify({
-    //     type: 'change_speed',
-    //     speed: currentSpeed
-    //   }));
-    //   console.log(`📤 语速调节请求已发送: ${currentSpeed}`);
-    // }
+    // 发送语速调节请求到后端
+    if (wsRef && wsRef.readyState === WebSocket.OPEN) {
+      wsRef.send(JSON.stringify({
+        type: 'change_speed',
+        speed: speed
+      }));
+      console.log(`📤 语速调节请求已发送: ${speed}`);
+    }
   }
 
   // 获取语速描述
@@ -129,14 +132,14 @@ export const VoiceProvider = ({ children }) => {
     // 显示通知
     showNotification('语音识别切换', `ASR已切换为: ${asrName}`)
 
-    // to do ... 发送ASR切换请求到后端
-    // if (ws && ws.readyState === WebSocket.OPEN) {
-    //   ws.send(JSON.stringify({
-    //     type: 'change_asr',
-    //     asr_type: currentASR
-    //   }));
-    //   console.log(`📤 ASR切换请求已发送: ${currentASR}`);
-    // }
+    // 发送ASR切换请求到后端
+    if (wsRef && wsRef.readyState === WebSocket.OPEN) {
+      wsRef.send(JSON.stringify({
+        type: 'change_asr',
+        asr_type: asrId
+      }));
+      console.log(`📤 ASR切换请求已发送: ${asrId}`);
+    }
   }
 
   // 获取当前ASR名称
@@ -171,19 +174,28 @@ export const VoiceProvider = ({ children }) => {
     // 显示通知
     showNotification('对话阶段调节', `对话阶段已手动调节为: ${stageName}`)
 
-    // to do ...发送阶段调节请求到后端
-    // if (ws && ws.readyState === WebSocket.OPEN) {
-    //   ws.send(JSON.stringify({
-    //     type: 'manual_stage_change',
-    //     stage: selectedStage
-    //   }));
-    //   console.log(`📤 手动阶段调节请求已发送: ${selectedStage}`);
-    // }
+    // 发送阶段调节请求到后端
+    if (wsRef && wsRef.readyState === WebSocket.OPEN) {
+      wsRef.send(JSON.stringify({
+        type: 'manual_stage_change',
+        stage: selectedStage
+      }));
+      console.log(`📤 手动阶段调节请求已发送: ${selectedStage}`);
+    }
   }
 
   // 获取当前阶段名称
   const getCurrentStageName = () => {
     return stageNames[conversationStage.stage_name] || '未知阶段'
+  }
+
+  // WebSocket 相关方法
+  const setWebSocketRef = (ws) => {
+    setWsRef(ws)
+  }
+
+  const getWebSocketRef = () => {
+    return wsRef
   }
 
   const value = {
@@ -207,7 +219,11 @@ export const VoiceProvider = ({ children }) => {
     changeStage,
     getCurrentStageName,
     isManualStageControl,
-    manualStage
+    manualStage,
+    // WebSocket 相关
+    setWebSocketRef,
+    getWebSocketRef,
+    wsRef
   }
 
   return (

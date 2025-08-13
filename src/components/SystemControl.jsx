@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { useSystemControlStore } from '../stores/systemControlStore'
+import { useWebSocket } from '../contexts/WebSocketContext'
 import { Wifi, Brain, Search, Zap, RotateCcw } from 'lucide-react'
 
 const SystemControl = () => {
   const {
-    connectionStatus,
+    // connectionStatus,
     isWarmedUp,
     isWarmingUp,
     isDeepThinking,
@@ -20,13 +21,14 @@ const SystemControl = () => {
     getSearchStatusText,
     startStatusPolling
   } = useSystemControlStore()
+  const {connectionStatus} = useWebSocket();
 
   const cleanupRef = useRef(null)
 
   // 组件挂载时开始状态轮询
   useEffect(() => {
     cleanupRef.current = startStatusPolling()
-    
+
     // 组件卸载时清理定时器
     return () => {
       if (cleanupRef.current) {
@@ -38,7 +40,7 @@ const SystemControl = () => {
   // 状态指示器组件
   const StatusDot = ({ status, type = 'default' }) => {
     let colorClass = 'bg-gray-400' // 默认灰色
-    
+
     if (type === 'connection') {
       colorClass = status ? 'bg-green-500' : 'bg-red-500'
     } else if (type === 'llm') {
@@ -48,7 +50,7 @@ const SystemControl = () => {
         colorClass = status ? 'bg-green-500' : 'bg-yellow-500'
       }
     }
-    
+
     return (
       <div className={`w-3 h-3 rounded-full ${colorClass} flex-shrink-0`}></div>
     )
@@ -139,10 +141,10 @@ const SystemControl = () => {
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           } ${isTogglingThinking ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          {isTogglingThinking 
-            ? '🔄 切换中...' 
-            : isDeepThinking 
-            ? '🧠 关闭深度思考' 
+          {isTogglingThinking
+            ? '🔄 切换中...'
+            : isDeepThinking
+            ? '🧠 关闭深度思考'
             : '🧠 开启深度思考'
           }
         </button>
