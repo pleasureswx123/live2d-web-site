@@ -3,6 +3,8 @@ import { useVoice } from './VoiceContext'
 import { useUserAuthStore } from '../stores/userAuthStore'
 import { useChatMessagesStore } from '../stores/chatMessagesStore'
 import { useTypingIndicatorStore } from '../stores/typingIndicatorStore'
+import { useProfileStore } from '../stores/profileStore'
+import { useConversionStore } from '../stores/conversionStore'
 
 // 创建 WebSocket Context
 const WebSocketContext = createContext()
@@ -24,6 +26,8 @@ export const WebSocketProvider = ({ children }) => {
     scrollToBottom
   } = useChatMessagesStore()
   const { updateUIState } = useTypingIndicatorStore();
+  const { updateProfileActivity } = useProfileStore();
+  const { addConversionActivity } = useConversionStore();
 
   // 连接 WebSocket
   const connectWebSocket = () => {
@@ -244,7 +248,8 @@ export const WebSocketProvider = ({ children }) => {
       case 'profile_updated':
         // 档案转换完成通知
         console.log('⚡ 档案转换完成:', data.conversion_summary)
-        updateProfileConversion(data.activity_info, data.conversion_summary)
+        updateProfileActivity(data.activity_info)
+        addConversionActivity(data.conversion_summary)
         break
 
       case 'manual_stage_success':
@@ -673,10 +678,6 @@ export const WebSocketProvider = ({ children }) => {
 
   const recordTTSFirstPacket = () => {
     console.log('⏱️ 记录TTS首包回复时间 - 待实现')
-  }
-
-  const updateProfileActivity = (activityInfo) => {
-    console.log('👤 更新用户档案活动 - 待实现')
   }
 
   const updateProfileConversion = (activityInfo, conversionSummary) => {
