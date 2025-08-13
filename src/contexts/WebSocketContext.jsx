@@ -685,19 +685,47 @@ export const WebSocketProvider = ({ children }) => {
   }
 
   const onASRStarted = () => {
-    console.log('🎤 ASR开始 - 待实现')
+    // 调用 ASR Store 的处理函数
+    const { useASRStore } = require('../stores/asrStore')
+    const asrStore = useASRStore.getState()
+    if (asrStore.onASRStarted) {
+      asrStore.onASRStarted()
+    } else {
+      console.log('🎤 ASR开始 - ASR Store 未初始化')
+    }
   }
 
   const onASRResult = (text, isFinal, confidence) => {
-    console.log('🎤 ASR结果 - 待实现')
+    // 调用 ASR Store 的处理函数
+    const { useASRStore } = require('../stores/asrStore')
+    const asrStore = useASRStore.getState()
+    if (asrStore.onASRResult) {
+      asrStore.onASRResult(text, isFinal, confidence)
+    } else {
+      console.log('🎤 ASR结果 - ASR Store 未初始化')
+    }
   }
 
   const onASRStopped = () => {
-    console.log('🎤 ASR停止 - 待实现')
+    // 调用 ASR Store 的处理函数
+    const { useASRStore } = require('../stores/asrStore')
+    const asrStore = useASRStore.getState()
+    if (asrStore.onASRStopped) {
+      asrStore.onASRStopped()
+    } else {
+      console.log('🎤 ASR停止 - ASR Store 未初始化')
+    }
   }
 
   const onASRError = (error) => {
-    console.log('🎤 ASR错误 - 待实现')
+    // 调用 ASR Store 的处理函数
+    const { useASRStore } = require('../stores/asrStore')
+    const asrStore = useASRStore.getState()
+    if (asrStore.onASRError) {
+      asrStore.onASRError(error)
+    } else {
+      console.log('🎤 ASR错误 - ASR Store 未初始化')
+    }
   }
 
   const appendBotMessage = (message) => {
