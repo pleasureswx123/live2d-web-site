@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useVoice } from './VoiceContext'
 import { useUserAuthStore } from '../stores/userAuthStore'
 import { useChatMessagesStore } from '../stores/chatMessagesStore'
+import { useTypingIndicatorStore } from '../stores/typingIndicatorStore'
 
 // 创建 WebSocket Context
 const WebSocketContext = createContext()
@@ -19,8 +20,10 @@ export const WebSocketProvider = ({ children }) => {
     appendToBotMessage,
     finishStreamingMessage,
     showSearchIndicator,
-    hideSearchIndicator
+    hideSearchIndicator,
+    scrollToBottom
   } = useChatMessagesStore()
+  const { updateUIState } = useTypingIndicatorStore();
 
   // 连接 WebSocket
   const connectWebSocket = () => {
@@ -150,8 +153,6 @@ export const WebSocketProvider = ({ children }) => {
 
       case 'generation_chunk':
         if (data.content) {
-          // 记录LLM首字响应时间
-          recordLLMFirstToken()
           appendToBotMessage(data.content)
         }
         break
@@ -175,8 +176,6 @@ export const WebSocketProvider = ({ children }) => {
         break
 
       case 'tts_audio_chunk':
-        // 记录TTS首包回复时间
-        recordTTSFirstPacket()
         // 处理流式TTS音频片段
         console.log('🎵 收到流式TTS音频片段:', {
           type: data.type,
@@ -310,14 +309,13 @@ export const WebSocketProvider = ({ children }) => {
   }
 
   const syncCurrentTTSSettings = () => {
-    // 获取当前的 VoiceContext 状态
-    const voiceState = useVoice.getState ? useVoice.getState() : { currentVoice: 'zh_female_meilinvyou_emo_v2_mars_bigtts', currentSpeed: 1.2 }
-    console.log('🔄 同步TTS设置到后端:', voiceState);
+    const { currentVoice, currentSpeed } = useVoice()
+    console.log('🔄 同步TTS设置到后端:', {voice: currentVoice, speed: currentSpeed});
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: 'sync_tts_settings',
-        voice: voiceState.currentVoice || 'zh_female_meilinvyou_emo_v2_mars_bigtts',
-        speed: voiceState.currentSpeed || 1.2
+        voice: currentVoice,
+        speed: currentSpeed
       }));
       console.log('📤 TTS设置同步请求已发送');
     } else {
@@ -326,11 +324,14 @@ export const WebSocketProvider = ({ children }) => {
   }
 
   const showTypingIndicator = () => {
-    console.log('⌨️ 显示打字指示器 - 待实现')
+    // 显示指示器
+    updateUIState({ isVisible: true });
+    scrollToBottom();
   }
 
   const hideTypingIndicator = () => {
-    console.log('⌨️ 隐藏打字指示器 - 待实现')
+    // 隐藏指示器
+    updateUIState({ isVisible: false });
   }
 
   const recordLLMFirstToken = () => {
