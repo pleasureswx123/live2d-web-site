@@ -3,6 +3,8 @@ import { useVoice } from './VoiceContext'
 import { useUserAuthStore } from '../stores/userAuthStore'
 import { useChatMessagesStore } from '../stores/chatMessagesStore'
 import { useTypingIndicatorStore } from '../stores/typingIndicatorStore'
+import { playAudioFromBase64, showAudioPrompt, getAudioStatus } from '../utils/audioUtils'
+import { useASRStore } from '../stores/asrStore'
 import { useProfileStore } from '../stores/profileStore'
 import { useConversionStore } from '../stores/conversionStore'
 
@@ -16,7 +18,7 @@ export const WebSocketProvider = ({ children }) => {
 
   // 获取用户信息和其他 context
   const { currentUser } = useUserAuthStore()
-  const { setWebSocketRef, showNotification, updateConversationStage } = useVoice()
+  const { setWebSocketRef, showNotification, updateConversationStage, currentVoice, currentSpeed } = useVoice()
   const {
     createNewBotMessageForWebSocket,
     appendToBotMessage,
@@ -25,7 +27,10 @@ export const WebSocketProvider = ({ children }) => {
     hideSearchIndicator,
     scrollToBottom
   } = useChatMessagesStore()
-  const { updateUIState } = useTypingIndicatorStore();
+  const { updateUIState } = useTypingIndicatorStore()
+
+  // 获取 ASR Store 的方法（在组件顶层调用）
+  const asrStore = useASRStore()
   const { updateProfileActivity } = useProfileStore();
   const { addConversionActivity } = useConversionStore();
 
@@ -290,15 +295,13 @@ export const WebSocketProvider = ({ children }) => {
       case 'error':
         hideTypingIndicator()
         // 如果有正在进行的流式消息，更新其内容为错误信息
-        const { currentStreamingMessageId } = useChatMessagesStore.getState()
-        if (currentStreamingMessageId) {
-          const { updateMessageContent, finishStreamingMessage } = useChatMessagesStore.getState()
-          updateMessageContent(currentStreamingMessageId, '抱歉，生成回复时出现了错误...')
-          finishStreamingMessage()
+        const chatStore = useChatMessagesStore.getState()
+        if (chatStore.currentStreamingMessageId) {
+          chatStore.updateMessageContent(chatStore.currentStreamingMessageId, '抱歉，生成回复时出现了错误...')
+          chatStore.finishStreamingMessage()
         } else {
           // 否则添加一个新的错误消息
-          const { addBotMessage } = useChatMessagesStore.getState()
-          addBotMessage('抱歉，生成回复时出现了错误...')
+          chatStore.addBotMessage('抱歉，生成回复时出现了错误...')
         }
         break
 
@@ -323,7 +326,6 @@ export const WebSocketProvider = ({ children }) => {
   }
 
   const syncCurrentTTSSettings = () => {
-    const { currentVoice, currentSpeed } = useVoice()
     console.log('🔄 同步TTS设置到后端:', {voice: currentVoice, speed: currentSpeed});
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
@@ -354,11 +356,18 @@ export const WebSocketProvider = ({ children }) => {
 
 
 
-  // 显示音频播放按钮（当自动播放被阻止时）
-  const showAudioPlayButton = (audioUrl) => {
-    console.log('🔘 显示音频播放按钮 - 需要用户交互')
-    // 这里可以显示一个播放按钮让用户手动播放
-    // 实际实现可能需要更新UI状态
+  // 显示音频状态信息
+  const showAudioStatus = () => {
+    const status = getAudioStatus()
+    console.log('🎵 音频状态:', status)
+
+    if (!status.isUnlocked && status.pendingCount > 0) {
+      showNotification(
+        '音频播放受限',
+        `有 ${status.pendingCount} 个音频等待播放，请点击页面任意位置启用音频`,
+        'info'
+      )
+    }
   }
 
   // 处理有序音频缓冲区
@@ -451,8 +460,8 @@ export const WebSocketProvider = ({ children }) => {
     }
   }
 
-  // 基础音频播放函数（不会导致递归调用）
-  const playTTSAudioBase = (audioBase64, format = 'mp3', onComplete = null) => {
+  // 基础音频播放函数（使用新的音频工具）
+  const playTTSAudioBase = async (audioBase64, format = 'mp3', onComplete = null) => {
     try {
       console.log('🔊 开始处理TTS音频数据:', {
         format: format,
@@ -467,49 +476,16 @@ export const WebSocketProvider = ({ children }) => {
         currentAudioRef.current = null
       }
 
-      // 将Base64数据转换为Blob
-      console.log('🔄 开始Base64解码...')
-      const binaryString = atob(audioBase64)
-      console.log('✅ Base64解码完成，二进制长度:', binaryString.length)
+      // 使用新的音频工具播放
+      const audio = await playAudioFromBase64(audioBase64, format, 0.8)
 
-      const bytes = new Uint8Array(binaryString.length)
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i)
-      }
-
-      console.log('🗂️ 创建音频Blob...')
-      const blob = new Blob([bytes], {type: `audio/${format}`})
-      console.log('✅ Blob创建完成:', {
-        size: blob.size,
-        type: blob.type
-      })
-
-      const audioUrl = URL.createObjectURL(blob)
-      console.log('🔗 音频URL创建完成:', audioUrl)
-
-      // 创建音频元素并播放
-      const audio = new Audio(audioUrl)
-      audio.volume = 0.8 // 设置音量
+      // 设置为当前音频
       currentAudioRef.current = audio
-
-      // 添加到跟踪列表
       currentAudioElementsRef.current.push(audio)
 
-      audio.onloadstart = () => {
-        console.log('音频开始加载...')
-      }
-
-      audio.oncanplay = () => {
-        console.log('音频可以播放，开始播放...')
-      }
-
-      audio.onplay = () => {
-        console.log('音频开始播放')
-      }
-
+      // 设置事件监听器
       audio.onended = () => {
         console.log('音频播放完成')
-        URL.revokeObjectURL(audioUrl) // 清理URL对象
 
         // 从跟踪列表中移除
         const index = currentAudioElementsRef.current.indexOf(audio)
@@ -529,7 +505,6 @@ export const WebSocketProvider = ({ children }) => {
 
       audio.onerror = (e) => {
         console.error('音频播放错误:', e)
-        URL.revokeObjectURL(audioUrl)
 
         // 从跟踪列表中移除
         const index = currentAudioElementsRef.current.indexOf(audio)
@@ -541,31 +516,37 @@ export const WebSocketProvider = ({ children }) => {
           currentAudioRef.current = null
         }
 
-        // 调用完成回调（即使出错也要继续）
+        // 调用完成回调
         if (onComplete) {
           onComplete()
         }
       }
 
-      // 播放音频
-      audio.play().catch(error => {
-        console.error('播放音频失败:', error)
-        // 如果自动播放失败，可能是由于浏览器的自动播放策略
-        if (error.name === 'NotAllowedError') {
-          console.log('浏览器阻止了自动播放，需要用户交互后才能播放')
-          // 可以显示一个播放按钮让用户手动播放
-          showAudioPlayButton(audioUrl)
-        }
+      console.log('✅ 音频播放成功')
 
-        // 调用完成回调
+    } catch (error) {
+      console.error('处理TTS音频数据失败:', error)
+
+      // 如果是自动播放被阻止，显示用户提示
+      if (error.name === 'NotAllowedError') {
+        console.log('🔒 显示音频权限提示')
+        showAudioPrompt(
+          (success) => {
+            if (success) {
+              console.log('✅ 用户启用了音频，重试播放')
+              // 重试播放
+              playTTSAudioBase(audioBase64, format, onComplete)
+            }
+          },
+          () => {
+            console.log('❌ 用户取消了音频启用')
+            if (onComplete) onComplete()
+          }
+        )
+      } else {
         if (onComplete) {
           onComplete()
         }
-      })
-    } catch (error) {
-      console.error('处理TTS音频数据失败:', error)
-      if (onComplete) {
-        onComplete()
       }
     }
   }
@@ -686,8 +667,6 @@ export const WebSocketProvider = ({ children }) => {
 
   const onASRStarted = () => {
     // 调用 ASR Store 的处理函数
-    const { useASRStore } = require('../stores/asrStore')
-    const asrStore = useASRStore.getState()
     if (asrStore.onASRStarted) {
       asrStore.onASRStarted()
     } else {
@@ -697,8 +676,6 @@ export const WebSocketProvider = ({ children }) => {
 
   const onASRResult = (text, isFinal, confidence) => {
     // 调用 ASR Store 的处理函数
-    const { useASRStore } = require('../stores/asrStore')
-    const asrStore = useASRStore.getState()
     if (asrStore.onASRResult) {
       asrStore.onASRResult(text, isFinal, confidence)
     } else {
@@ -708,8 +685,6 @@ export const WebSocketProvider = ({ children }) => {
 
   const onASRStopped = () => {
     // 调用 ASR Store 的处理函数
-    const { useASRStore } = require('../stores/asrStore')
-    const asrStore = useASRStore.getState()
     if (asrStore.onASRStopped) {
       asrStore.onASRStopped()
     } else {
@@ -719,8 +694,6 @@ export const WebSocketProvider = ({ children }) => {
 
   const onASRError = (error) => {
     // 调用 ASR Store 的处理函数
-    const { useASRStore } = require('../stores/asrStore')
-    const asrStore = useASRStore.getState()
     if (asrStore.onASRError) {
       asrStore.onASRError(error)
     } else {
@@ -731,6 +704,20 @@ export const WebSocketProvider = ({ children }) => {
   const appendBotMessage = (message) => {
     console.log('💬 追加机器人消息 - 待实现')
   }
+
+  // 定期检查音频状态
+  useEffect(() => {
+    const checkAudioStatus = () => {
+      showAudioStatus()
+    }
+
+    // 每30秒检查一次音频状态
+    const interval = setInterval(checkAudioStatus, 30000)
+
+    return () => {
+      clearInterval(interval)
+    }
+  }, [])
 
   // 监听用户变化，重新连接 WebSocket
   useEffect(() => {
