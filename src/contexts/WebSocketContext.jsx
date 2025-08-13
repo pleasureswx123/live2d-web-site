@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useVoice } from './VoiceContext'
 import { useUserAuthStore } from '../stores/userAuthStore'
+import { useChatMessagesStore } from '../stores/chatMessagesStore'
 
 // 创建 WebSocket Context
 const WebSocketContext = createContext()
@@ -9,11 +10,17 @@ const WebSocketContext = createContext()
 export const WebSocketProvider = ({ children }) => {
   const wsRef = useRef(null)
   const [connectionStatus, setConnectionStatus] = useState('disconnected') // 'connected', 'disconnected', 'connecting'
-  const [currentBotMessage, setCurrentBotMessage] = useState(null)
 
   // 获取用户信息和其他 context
   const { currentUser } = useUserAuthStore()
-  const { setWebSocketRef, showNotification, updateConversationStage, currentVoice, currentSpeed } = useVoice()
+  const { setWebSocketRef, showNotification, updateConversationStage } = useVoice()
+  const {
+    createNewBotMessageForWebSocket,
+    appendToBotMessage,
+    finishStreamingMessage,
+    showSearchIndicator,
+    hideSearchIndicator
+  } = useChatMessagesStore()
 
   // 连接 WebSocket
   const connectWebSocket = () => {
@@ -137,7 +144,7 @@ export const WebSocketProvider = ({ children }) => {
 
       case 'generation_start':
         // 开始生成时创建新的机器人消息框
-        createNewBotMessage()
+        createNewBotMessageForWebSocket()
         showTypingIndicator()
         break
 
@@ -151,7 +158,7 @@ export const WebSocketProvider = ({ children }) => {
 
       case 'generation_end':
         hideTypingIndicator()
-        setCurrentBotMessage(null) // 清空当前消息引用
+        finishStreamingMessage() // 完成流式消息
         break
 
       case 'tts_audio':
@@ -278,15 +285,17 @@ export const WebSocketProvider = ({ children }) => {
 
       case 'error':
         hideTypingIndicator()
-        if (currentBotMessage) {
-          const content = currentBotMessage.querySelector('.message-content')
-          if (content) {
-            content.textContent = '抱歉，生成回复时出现了错误...'
-          }
+        // 如果有正在进行的流式消息，更新其内容为错误信息
+        const { currentStreamingMessageId } = useChatMessagesStore.getState()
+        if (currentStreamingMessageId) {
+          const { updateMessageContent, finishStreamingMessage } = useChatMessagesStore.getState()
+          updateMessageContent(currentStreamingMessageId, '抱歉，生成回复时出现了错误...')
+          finishStreamingMessage()
         } else {
-          appendBotMessage('抱歉，生成回复时出现了错误...')
+          // 否则添加一个新的错误消息
+          const { addBotMessage } = useChatMessagesStore.getState()
+          addBotMessage('抱歉，生成回复时出现了错误...')
         }
-        setCurrentBotMessage(null)
         break
 
       default:
@@ -301,29 +310,19 @@ export const WebSocketProvider = ({ children }) => {
   }
 
   const syncCurrentTTSSettings = () => {
-    console.log('🔄 同步TTS设置到后端:', {voice: currentVoice, speed: currentSpeed});
+    // 获取当前的 VoiceContext 状态
+    const voiceState = useVoice.getState ? useVoice.getState() : { currentVoice: 'zh_female_meilinvyou_emo_v2_mars_bigtts', currentSpeed: 1.2 }
+    console.log('🔄 同步TTS设置到后端:', voiceState);
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: 'sync_tts_settings',
-        voice: currentVoice,
-        speed: currentSpeed
+        voice: voiceState.currentVoice || 'zh_female_meilinvyou_emo_v2_mars_bigtts',
+        speed: voiceState.currentSpeed || 1.2
       }));
       console.log('📤 TTS设置同步请求已发送');
     } else {
       console.log('⚠️ WebSocket未连接，无法同步TTS设置');
     }
-  }
-
-  const showSearchIndicator = (query) => {
-    console.log('🔍 显示搜索指示器:', query)
-  }
-
-  const hideSearchIndicator = () => {
-    console.log('🔍 隐藏搜索指示器')
-  }
-
-  const createNewBotMessage = () => {
-    console.log('💬 创建新的机器人消息 - 待实现')
   }
 
   const showTypingIndicator = () => {
@@ -338,9 +337,7 @@ export const WebSocketProvider = ({ children }) => {
     console.log('⏱️ 记录LLM首字响应时间 - 待实现')
   }
 
-  const appendToBotMessage = (content) => {
-    console.log('💬 追加到机器人消息:', content)
-  }
+
 
   const playTTSAudio = (audioData, format) => {
     console.log('🎵 播放TTS音频 - 待实现')

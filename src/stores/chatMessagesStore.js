@@ -318,10 +318,13 @@ export const useChatMessagesStore = create((set, get) => ({
     }))
   },
 
+  // 当前流式消息ID（用于WebSocket流式消息）
+  currentStreamingMessageId: null,
+
   // 创建新的机器人消息
   createNewBotMessage: () => {
     const { config } = get()
-    
+
     const message = {
       type: 'bot',
       content: '',
@@ -335,6 +338,87 @@ export const useChatMessagesStore = create((set, get) => ({
     }
 
     return get().addMessage(message)
+  },
+
+  // 创建新的机器人消息框（WebSocket专用）
+  createNewBotMessageForWebSocket: () => {
+    const { config } = get()
+
+    const message = {
+      type: 'bot',
+      content: '',
+      user: {
+        name: config.characterInfo.name,
+        avatar: config.characterInfo.avatar,
+        id: 'bot'
+      },
+      status: 'sending',
+      isStreaming: true
+    }
+
+    const messageId = get().addMessage(message)
+
+    // 设置当前流式消息ID
+    set({ currentStreamingMessageId: messageId })
+
+    console.log('💬 创建新的机器人消息框，ID:', messageId)
+    return messageId
+  },
+
+  // 追加到当前机器人消息（WebSocket专用）
+  appendToBotMessage: (text) => {
+    const { currentStreamingMessageId, messages } = get()
+
+    if (!currentStreamingMessageId) {
+      // 如果没有当前消息，创建一个新的
+      console.log('💬 没有当前流式消息，创建新的消息框')
+      get().createNewBotMessageForWebSocket()
+      return get().appendToBotMessage(text)
+    }
+
+    // 找到当前流式消息
+    const currentMessage = messages.find(msg => msg.id === currentStreamingMessageId)
+    if (!currentMessage) {
+      console.warn('⚠️ 找不到当前流式消息，创建新的消息框')
+      get().createNewBotMessageForWebSocket()
+      return get().appendToBotMessage(text)
+    }
+
+    // 追加文本到消息内容
+    const newContent = currentMessage.content + text
+
+    set((state) => ({
+      messages: state.messages.map(msg =>
+        msg.id === currentStreamingMessageId
+          ? { ...msg, content: newContent }
+          : msg
+      )
+    }))
+
+    // 自动滚动到底部
+    if (get().ui.autoScroll) {
+      setTimeout(() => get().scrollToBottom(), 10)
+    }
+
+    console.log('💬 追加文本到机器人消息:', text)
+  },
+
+  // 完成当前流式消息
+  finishStreamingMessage: () => {
+    const { currentStreamingMessageId } = get()
+
+    if (currentStreamingMessageId) {
+      set((state) => ({
+        messages: state.messages.map(msg =>
+          msg.id === currentStreamingMessageId
+            ? { ...msg, status: 'sent', isStreaming: false }
+            : msg
+        ),
+        currentStreamingMessageId: null
+      }))
+
+      console.log('✅ 完成流式消息，ID:', currentStreamingMessageId)
+    }
   },
 
   // 更新UI状态
