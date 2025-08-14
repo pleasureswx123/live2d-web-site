@@ -8,7 +8,7 @@ import { useSystemControlStore } from '../stores/systemControlStore'
 import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
 import { FileUploadButton, FilePreview } from './FileUpload'
-import ASRChatIntegration from './ASR/ASRChatIntegration'
+
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
 import { Send, Paperclip, Mic, MicOff } from 'lucide-react'
@@ -38,7 +38,7 @@ const WorkingChatInterface = ({
   const chatContainerRef = useRef(null)
 
   // WebSocket和Stores
-  const { sendMessage, connectionStatus } = useWebSocket()
+  const { sendMessage, connectionStatus, wsRef } = useWebSocket()
   const {
     messages,
     addUserMessage,
@@ -55,8 +55,12 @@ const WorkingChatInterface = ({
   } = useFileUploadStore()
   const {
     recording,
+    recognition,
+    ui: asrUI,
+    connection: asrConnection,
     startContinuousASR,
-    stopContinuousASR
+    stopContinuousASR,
+    updateConnectionFromContext
   } = useASRStore()
 
   // 获取当前选中的文件
@@ -232,49 +236,117 @@ const WorkingChatInterface = ({
     }
   }
 
-  // 处理ASR消息发送
-  const handleASRMessage = async (messageData) => {
-    console.log('🎤 ASR消息:', messageData)
-
-    if (!messageData.text) return
-
-    try {
-      // 打断当前TTS播放
-      stopAllTTSAudio()
-
-      // 准备消息数据
-      const asrMessageData = {
-        type: 'chat',
-        content: messageData.text
-      }
-
-      // 检测搜索需求
-      if (shouldTriggerSearch(messageData.text)) {
-        asrMessageData.search_query = messageData.text
-        showSearchIndicator(messageData.text)
-      }
-
-      // 显示用户消息
-      addUserMessage(messageData.text)
-
-      // 发送WebSocket消息
-      const success = sendMessage(asrMessageData)
-      if (!success) {
-        throw new Error('WebSocket消息发送失败')
-      }
-
-      // 滚动到底部
-      setTimeout(scrollToBottom, 100)
-
+  // 处理ASR模式切换
+  const handleASRToggle = () => {
+    if (recording.isContinuousMode) {
+      stopContinuousASR()
       if (onNotification) {
-        onNotification('语音消息已发送', 'success')
+        onNotification('已停止持续语音识别', 'info')
       }
-
-    } catch (error) {
-      console.error('❌ ASR消息发送失败:', error)
-      if (onError) onError('ASR消息发送失败')
+    } else {
+      // 开始持续ASR前先停止所有TTS音频
+      startContinuousASR()
+      if (onNotification) {
+        onNotification('已开始持续语音识别', 'info')
+      }
     }
   }
+
+  // 同步WebSocket连接状态到ASR Store
+  useEffect(() => {
+    if (updateConnectionFromContext) {
+      updateConnectionFromContext(wsRef, connectionStatus)
+    }
+  }, [connectionStatus, wsRef, updateConnectionFromContext])
+
+  // 监听ASR事件并集成到输入框
+  useEffect(() => {
+    const handleASRInputUpdate = (event) => {
+      const { text, mode } = event.detail
+      console.log('🎤 ASR输入更新:', text, mode)
+
+      // 直接更新输入框内容
+      if (text && text.trim()) {
+        setMessage(text.trim())
+        // 自动调整输入框高度
+        setTimeout(autoResizeTextarea, 0)
+      }
+    }
+
+    const handleASRResult = (event) => {
+      const { text, mode } = event.detail
+      console.log('🎤 ASR最终结果:', text, 'mode:', mode)
+
+      if (text && text.trim()) {
+        // 设置输入框内容
+        setMessage(text.trim())
+        setTimeout(autoResizeTextarea, 0)
+
+        // 如果是持续模式的最终结果，不自动发送，让用户确认
+        if (mode === 'continuous_final') {
+          console.log('🎤 持续模式最终结果，等待用户确认发送')
+          if (onNotification) {
+            onNotification('语音识别完成，请确认后发送', 'info')
+          }
+        } else if (recording.isContinuousMode) {
+          // 持续模式中的中间结果，自动发送
+          setTimeout(() => {
+            handleSendMessage()
+          }, 500) // 延迟500ms发送，给用户看到结果的时间
+        }
+      }
+    }
+
+    const handleASRError = (event) => {
+      const { error, originalError, mode } = event.detail
+      console.error('❌ ASR错误:', error, 'mode:', mode)
+      if (onError) onError(`语音识别错误: ${error}`)
+    }
+
+    const handleASRStopped = (event) => {
+      const { finalText, mode } = event.detail
+      console.log('🎤 ASR已停止, mode:', mode, 'finalText:', finalText)
+
+      // 使用服务器提供的最终文本，如果没有则使用当前识别文本
+      let textToUse = finalText
+      if (!textToUse && recognition.currentText && recognition.currentText.trim()) {
+        textToUse = recognition.currentText.trim()
+        console.log('🎤 使用当前识别文本:', textToUse)
+      }
+
+      if (textToUse) {
+        setMessage(textToUse)
+        setTimeout(autoResizeTextarea, 0)
+
+        if (onNotification) {
+          onNotification('语音识别已停止，请确认内容后发送', 'info')
+        }
+      }
+    }
+
+    const handleASRServerStarted = (event) => {
+      const { mode } = event.detail
+      console.log('🎤 服务器确认ASR已启动, mode:', mode)
+      if (onNotification) {
+        onNotification('语音识别服务已启动', 'success')
+      }
+    }
+
+    // 注册事件监听器
+    window.addEventListener('asrInputUpdate', handleASRInputUpdate)
+    window.addEventListener('asrResult', handleASRResult)
+    window.addEventListener('asrServerError', handleASRError)
+    window.addEventListener('asrServerStopped', handleASRStopped)
+    window.addEventListener('asrServerStarted', handleASRServerStarted)
+
+    return () => {
+      window.removeEventListener('asrInputUpdate', handleASRInputUpdate)
+      window.removeEventListener('asrResult', handleASRResult)
+      window.removeEventListener('asrServerError', handleASRError)
+      window.removeEventListener('asrServerStopped', handleASRStopped)
+      window.removeEventListener('asrServerStarted', handleASRServerStarted)
+    }
+  }, [recording.isContinuousMode, onError])
 
   // 组件挂载时的初始化
   useEffect(() => {
@@ -315,16 +387,7 @@ const WorkingChatInterface = ({
             />
           )}
 
-          {/* ASR集成 */}
-          {enableASR && (
-            <ASRChatIntegration
-              chatId="working-chat"
-              onSendMessage={handleASRMessage}
-              onError={onError}
-              onNotification={onNotification}
-              className="mb-2"
-            />
-          )}
+
 
           {/* 输入框区域 */}
           <div className="flex items-end space-x-2">
@@ -365,9 +428,10 @@ const WorkingChatInterface = ({
               <Button
                 variant={recording.isContinuousMode ? "default" : "ghost"}
                 size="sm"
-                onClick={recording.isContinuousMode ? stopContinuousASR : startContinuousASR}
-                disabled={isSending}
+                onClick={handleASRToggle}
+                disabled={isSending || !asrConnection.isConnected}
                 className="flex-shrink-0"
+                title={recording.isContinuousMode ? "停止持续语音识别" : "开始持续语音识别"}
               >
                 {recording.isContinuousMode ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
               </Button>
@@ -385,20 +449,33 @@ const WorkingChatInterface = ({
 
           {/* 状态提示 */}
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <div>
+            <div className="flex items-center space-x-2">
               {connectionStatus !== 'connected' && (
                 <span className="text-red-500">
                   {connectionStatus === 'connecting' ? '正在连接...' : '连接已断开'}
                 </span>
               )}
-              {recording.isRecording && (
-                <span className="text-blue-500 ml-2">
-                  🎤 录音中...
+              {/*{recording.isRecording && (
+                <span className="text-blue-500">
+                  🎤 {recording.isContinuousMode ? '持续识别中...' : '录音中...'}
+                </span>
+              )}*/}
+              {asrUI.showStatus && asrUI.statusText && (
+                <span className="text-green-500">
+                  {asrUI.statusText}
                 </span>
               )}
+              {/*{recognition.currentText && (
+                <span className="text-blue-600 max-w-xs truncate">
+                  识别: {recognition.currentText}
+                </span>
+              )}*/}
             </div>
-            <div>
-              长按空格键进行语音输入
+            <div className="flex items-center space-x-2">
+              {enableASR && !asrConnection.isConnected && (
+                <span className="text-orange-500">ASR未连接</span>
+              )}
+              <span>长按空格键进行语音输入</span>
             </div>
           </div>
         </div>

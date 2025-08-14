@@ -32,6 +32,13 @@ export const WebSocketProvider = ({ children }) => {
   const { updateProfileActivity } = useProfileStore();
   const { addConversionActivity } = useConversionStore();
 
+  // 当WebSocket连接状态改变时，更新ASR Store
+  useEffect(() => {
+    if (asrStore.updateConnectionFromContext) {
+      asrStore.updateConnectionFromContext(wsRef, connectionStatus)
+    }
+  }, [connectionStatus, wsRef.current])
+
   // 连接 WebSocket
   const connectWebSocket = () => {
     if (wsRef.current && wsRef.current.readyState <= 1) {
@@ -49,6 +56,12 @@ export const WebSocketProvider = ({ children }) => {
       setConnectionStatus('connected')
       wsRef.current = ws
       setWebSocketRef(ws)
+
+      // 设置ASR Store的WebSocket连接
+      if (asrStore.setWebSocket) {
+        asrStore.setWebSocket(ws)
+        console.log('🎤 ASR Store WebSocket连接已设置')
+      }
 
       // 发送用户初始化消息
       if (currentUser?.id) {
@@ -75,6 +88,12 @@ export const WebSocketProvider = ({ children }) => {
       wsRef.current = null
       setWebSocketRef(null)
 
+      // 清除ASR Store的WebSocket连接
+      if (asrStore.setWebSocket) {
+        asrStore.setWebSocket(null)
+        console.log('🎤 ASR Store WebSocket连接已清除')
+      }
+
       // 5秒后重连
       setTimeout(() => {
         console.log('🔄 准备重新连接 WebSocket...')
@@ -95,6 +114,13 @@ export const WebSocketProvider = ({ children }) => {
       wsRef.current = null
       setWebSocketRef(null)
       setConnectionStatus('disconnected')
+
+      // 清除ASR Store的WebSocket连接
+      if (asrStore.setWebSocket) {
+        asrStore.setWebSocket(null)
+        console.log('🎤 ASR Store WebSocket连接已清除')
+      }
+
       console.log('🔌 WebSocket连接已手动断开')
     }
   }
@@ -265,28 +291,24 @@ export const WebSocketProvider = ({ children }) => {
         break
 
       case 'asr_started':
-        debugger
         // ASR识别开始
         console.log('🎤 ASR识别已开始')
         onASRStarted()
         break
 
       case 'asr_result':
-        debugger
         // ASR识别结果
         console.log('🎤 ASR识别结果:', data.text, '(final:', data.is_final, ')')
         onASRResult(data.text, data.is_final, data.confidence)
         break
 
       case 'asr_stopped':
-        debugger
         // ASR识别停止
         console.log('🎤 ASR识别已停止')
         onASRStopped()
         break
 
       case 'asr_error':
-        debugger
         // ASR识别错误
         console.error('❌ ASR识别错误:', data.error)
         onASRError(data.error)

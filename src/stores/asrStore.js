@@ -11,7 +11,8 @@ export const useASRStore = create((set, get) => ({
     recordingStartTime: null,
     spaceKeyStartTime: null,
     spaceKeyTimer: null,
-    continuousSilenceTimer: null
+    continuousSilenceTimer: null,
+    serverConfirmed: false // 服务器是否确认ASR已启动
   },
 
   // 识别结果
@@ -19,7 +20,11 @@ export const useASRStore = create((set, get) => ({
     currentText: '',
     bestText: '',
     lastResultTime: null,
-    confidence: 0
+    confidence: 0,
+    // 持续模式专用字段
+    continuousText: '', // 持续模式累积的完整文本
+    lastContinuousSegment: '', // 最后一个连续片段
+    continuousSegments: [] // 所有连续片段的数组
   },
 
   // 音频处理
@@ -28,13 +33,23 @@ export const useASRStore = create((set, get) => ({
     context: null,
     processor: null,
     volumeThreshold: 0.01,
-    source: null
+    source: null,
+    // 音频质量监控
+    stats: {
+      totalChunks: 0,
+      silentChunks: 0,
+      averageVolume: 0,
+      lastChunkTime: null
+    }
   },
 
   // WebSocket连接
   connection: {
     ws: null,
-    isConnected: false
+    isConnected: false,
+    retryCount: 0,
+    maxRetries: 3,
+    lastError: null
   },
 
   // UI状态
@@ -96,9 +111,63 @@ export const useASRStore = create((set, get) => ({
       connection: {
         ...state.connection,
         ws,
-        isConnected: ws?.readyState === WebSocket.OPEN
+        isConnected: ws?.readyState === WebSocket.OPEN,
+        retryCount: 0, // 重置重试计数
+        lastError: null
       }
     }))
+
+    // 监听WebSocket状态变化
+    if (ws) {
+      ws.addEventListener('close', () => {
+        console.log('🔌 WebSocket连接已关闭')
+        set((state) => ({
+          connection: {
+            ...state.connection,
+            isConnected: false
+          }
+        }))
+
+        // 如果正在录音，触发错误处理
+        const currentState = get()
+        if (currentState.recording.isRecording) {
+          currentState.onASRError('WebSocket连接断开')
+        }
+      })
+
+      ws.addEventListener('error', (error) => {
+        console.error('❌ WebSocket连接错误:', error)
+        set((state) => ({
+          connection: {
+            ...state.connection,
+            lastError: error.message || 'WebSocket连接错误'
+          }
+        }))
+      })
+    }
+  },
+
+  // 初始化WebSocket连接（从WebSocketContext获取）
+  initializeWebSocketConnection: () => {
+    try {
+      // 这个函数会在组件中被调用，传入WebSocket实例
+      console.log('🔌 初始化ASR WebSocket连接')
+    } catch (error) {
+      console.error('❌ 初始化WebSocket连接失败:', error)
+    }
+  },
+
+  // 从WebSocketContext获取连接状态
+  updateConnectionFromContext: (wsRef, connectionStatus) => {
+    const ws = wsRef?.current
+    set((state) => ({
+      connection: {
+        ...state.connection,
+        ws,
+        isConnected: connectionStatus === 'connected' && ws?.readyState === WebSocket.OPEN
+      }
+    }))
+    console.log('🔌 ASR Store WebSocket状态已更新:', connectionStatus)
   },
 
   // 更新录音状态
@@ -114,7 +183,7 @@ export const useASRStore = create((set, get) => ({
   // 更新识别结果
   updateRecognitionResult: (text, isFinal = false, confidence = 0) => {
     const now = Date.now()
-    
+
     set((state) => {
       const newState = {
         recognition: {
@@ -221,10 +290,15 @@ export const useASRStore = create((set, get) => ({
   // 开始长按空格键ASR
   startSpaceKeyASR: async () => {
     const { recording, startASR, updateUIState, updateRecordingState } = get()
-    
+
     if (recording.isSpaceKeyASRActive) return
 
     try {
+      // 开始长按空格键ASR前先停止所有TTS音频
+      console.log('🛑 停止所有TTS音频以开始长按空格键ASR')
+      window.dispatchEvent(new CustomEvent('stopAllTTS'))
+      window.dispatchEvent(new CustomEvent('clearAudioQueue'))
+
       updateRecordingState({ isSpaceKeyASRActive: true })
       console.log('🎤 开始长按空格键ASR模式')
 
@@ -268,15 +342,23 @@ export const useASRStore = create((set, get) => ({
       // 等待一小段时间让ASR处理完最后的结果
       setTimeout(() => {
         const currentState = get()
+        const currentText = currentState.recognition.currentText
         const bestText = currentState.recognition.bestText
 
-        // 如果有识别结果，触发回调
-        if (bestText && bestText.trim()) {
-          console.log('🎤 长按空格键ASR完成，结果:', bestText)
+        // 选择最完整的文本作为最终结果
+        let finalText = ''
+        if (currentText && currentText.trim()) {
+          finalText = currentText.trim()
+        } else if (bestText && bestText.trim()) {
+          finalText = bestText.trim()
+        }
 
-          // 这里可以触发自定义事件或回调
+        // 如果有识别结果，触发回调
+        if (finalText) {
+          console.log('🎤 长按空格键ASR完成，结果:', finalText)
+
           const event = new CustomEvent('asrResult', {
-            detail: { text: bestText.trim() }
+            detail: { text: finalText, mode: 'spacekey_final' }
           })
           window.dispatchEvent(event)
         } else {
@@ -284,6 +366,12 @@ export const useASRStore = create((set, get) => ({
         }
 
         updateUIState({ showStatus: false })
+
+        // 触发ASR停止事件
+        const stopEvent = new CustomEvent('asrStopped', {
+          detail: { mode: 'spacekey' }
+        })
+        window.dispatchEvent(stopEvent)
       }, 500)
     } catch (error) {
       console.error('停止长按空格键ASR失败:', error)
@@ -298,6 +386,11 @@ export const useASRStore = create((set, get) => ({
     if (recording.isContinuousMode) return
 
     try {
+      // 开始持续ASR前先停止所有TTS音频
+      console.log('🛑 停止所有TTS音频以开始持续ASR')
+      window.dispatchEvent(new CustomEvent('stopAllTTS'))
+      window.dispatchEvent(new CustomEvent('clearAudioQueue'))
+
       updateRecordingState({ isContinuousMode: true })
       console.log('🎤 开始持续模式ASR')
 
@@ -312,7 +405,10 @@ export const useASRStore = create((set, get) => ({
         recognition: {
           ...state.recognition,
           currentText: '',
-          bestText: ''
+          bestText: '',
+          continuousText: '',
+          lastContinuousSegment: '',
+          continuousSegments: []
         }
       }))
 
@@ -343,24 +439,79 @@ export const useASRStore = create((set, get) => ({
         clearTimeout(recording.continuousSilenceTimer)
       }
 
+      // 停止ASR前先获取当前最新的识别结果
+      const currentState = get()
+      const currentText = currentState.recognition.currentText
+      const bestText = currentState.recognition.bestText
+      const continuousText = currentState.recognition.continuousText
+
+      // 优先使用持续模式累积的完整文本
+      let finalText = ''
+      if (continuousText && continuousText.trim()) {
+        finalText = continuousText.trim()
+        console.log('🎤 使用持续模式累积文本:', finalText)
+      } else if (currentText && currentText.trim()) {
+        finalText = currentText.trim()
+        console.log('🎤 使用当前识别文本:', finalText)
+      } else if (bestText && bestText.trim()) {
+        finalText = bestText.trim()
+        console.log('🎤 使用最佳识别文本:', finalText)
+      }
+
       // 停止ASR
       await stopASR()
 
-      // 如果有识别结果，触发回调
-      const bestText = recognition.bestText
-      if (bestText && bestText.trim()) {
-        console.log('🎤 持续模式ASR完成，结果:', bestText)
+      // 等待一小段时间确保最后的识别结果被处理
+      setTimeout(() => {
+        const latestState = get()
+        const latestCurrentText = latestState.recognition.currentText
+        const latestBestText = latestState.recognition.bestText
+        const latestContinuousText = latestState.recognition.continuousText
 
-        const event = new CustomEvent('asrResult', {
-          detail: { text: bestText.trim() }
-        })
-        window.dispatchEvent(event)
-      }
+        // 再次选择最完整的文本，优先使用持续模式累积的文本
+        let completeFinalText = finalText
+
+        if (latestContinuousText && latestContinuousText.trim() && latestContinuousText.length >= completeFinalText.length) {
+          completeFinalText = latestContinuousText.trim()
+          console.log('🎤 最终使用持续模式累积文本:', completeFinalText)
+        } else if (latestCurrentText && latestCurrentText.trim() && latestCurrentText.length > completeFinalText.length) {
+          completeFinalText = latestCurrentText.trim()
+          console.log('🎤 最终使用当前识别文本:', completeFinalText)
+        } else if (latestBestText && latestBestText.trim() && latestBestText.length > completeFinalText.length) {
+          completeFinalText = latestBestText.trim()
+          console.log('🎤 最终使用最佳识别文本:', completeFinalText)
+        }
+
+        if (completeFinalText) {
+          console.log('🎤 持续模式ASR完成，最终结果:', completeFinalText)
+          console.log('🎤 累积片段:', latestState.recognition.continuousSegments)
+
+          const event = new CustomEvent('asrResult', {
+            detail: { text: completeFinalText, mode: 'continuous_final' }
+          })
+          window.dispatchEvent(event)
+        } else {
+          console.log('🎤 持续模式ASR完成，但无有效结果')
+        }
+      }, 300) // 等待300ms确保获取最后的识别结果
 
       updateUIState({ showStatus: false })
+
+      // 触发ASR停止事件
+      const stopEvent = new CustomEvent('asrStopped', {
+        detail: { mode: 'continuous' }
+      })
+      window.dispatchEvent(stopEvent)
+
     } catch (error) {
       console.error('停止持续模式ASR失败:', error)
       updateUIState({ showStatus: false })
+
+      // 即使出错也触发停止事件
+      const stopEvent = new CustomEvent('asrStopped', {
+        detail: { mode: 'continuous', error: error.message }
+      })
+      window.dispatchEvent(stopEvent)
     }
   },
 
@@ -385,7 +536,7 @@ export const useASRStore = create((set, get) => ({
       const audioContext = new (window.AudioContext || window.webkitAudioContext)({
         sampleRate: 16000
       })
-      
+
       const source = audioContext.createMediaStreamSource(audioStream)
       const processor = audioContext.createScriptProcessor(1024, 1, 1)
 
@@ -406,6 +557,20 @@ export const useASRStore = create((set, get) => ({
           const rms = Math.sqrt(sum / inputData.length)
           const isSilent = rms < audio.volumeThreshold
 
+          // 更新音频统计
+          const now = Date.now()
+          set((state) => ({
+            audio: {
+              ...state.audio,
+              stats: {
+                totalChunks: state.audio.stats.totalChunks + 1,
+                silentChunks: state.audio.stats.silentChunks + (isSilent ? 1 : 0),
+                averageVolume: (state.audio.stats.averageVolume * state.audio.stats.totalChunks + rms) / (state.audio.stats.totalChunks + 1),
+                lastChunkTime: now
+              }
+            }
+          }))
+
           // 转换为16位PCM
           const pcmData = new Int16Array(inputData.length)
           for (let i = 0; i < inputData.length; i++) {
@@ -415,13 +580,33 @@ export const useASRStore = create((set, get) => ({
 
           // 转换为base64并发送
           const base64String = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)))
-          
-          connection.ws.send(JSON.stringify({
-            type: 'audio_chunk',
-            audio_data: base64String
-          }))
 
-          console.log('🎤 发送PCM音频数据块:', base64String.length, 'chars, 音量:', rms.toFixed(4), isSilent ? '(静音)' : '(有声)')
+          // 检查WebSocket连接状态并发送
+          if (connection.ws && connection.ws.readyState === WebSocket.OPEN) {
+            try {
+              connection.ws.send(JSON.stringify({
+                type: 'audio_chunk',
+                audio_data: base64String,
+                timestamp: Date.now(),
+                volume: rms
+              }))
+              // 详细的调试信息
+              const stats = get().audio.stats
+              console.log('🎤 发送PCM音频数据块:', {
+                size: base64String.length + ' chars',
+                volume: rms.toFixed(4),
+                status: isSilent ? '静音' : '有声',
+                totalChunks: stats.totalChunks,
+                silentRate: ((stats.silentChunks / stats.totalChunks) * 100).toFixed(1) + '%',
+                avgVolume: stats.averageVolume.toFixed(4)
+              })
+            } catch (error) {
+              console.error('❌ 发送音频数据失败:', error)
+              get().onASRError(`音频传输失败: ${error.message}`)
+            }
+          } else {
+            console.warn('⚠️ WebSocket连接不可用，跳过音频数据发送')
+          }
         }
       }
 
@@ -452,9 +637,24 @@ export const useASRStore = create((set, get) => ({
 
       // 通知服务器开始ASR
       if (connection.ws && connection.ws.readyState === WebSocket.OPEN) {
-        connection.ws.send(JSON.stringify({
-          type: 'start_asr'
-        }))
+        try {
+          connection.ws.send(JSON.stringify({
+            type: 'start_asr',
+            timestamp: Date.now(),
+            mode: get().recording.isContinuousMode ? 'continuous' : 'normal',
+            config: {
+              sampleRate: audioContext.sampleRate,
+              channels: 1,
+              format: 'pcm16'
+            }
+          }))
+          console.log('📤 发送start_asr消息')
+        } catch (error) {
+          console.error('❌ 发送start_asr失败:', error)
+          throw new Error(`启动ASR失败: ${error.message}`)
+        }
+      } else {
+        throw new Error('WebSocket连接不可用')
       }
 
     } catch (error) {
@@ -524,9 +724,19 @@ export const useASRStore = create((set, get) => ({
 
       // 通知服务器停止ASR
       if (connection.ws && connection.ws.readyState === WebSocket.OPEN) {
-        connection.ws.send(JSON.stringify({
-          type: 'stop_asr'
-        }))
+        try {
+          connection.ws.send(JSON.stringify({
+            type: 'stop_asr',
+            timestamp: Date.now(),
+            mode: get().recording.isContinuousMode ? 'continuous' : 'normal'
+          }))
+          console.log('📤 发送stop_asr消息')
+        } catch (error) {
+          console.error('❌ 发送stop_asr失败:', error)
+          // 即使发送失败也要继续清理本地资源
+        }
+      } else {
+        console.warn('⚠️ WebSocket连接不可用，无法发送stop_asr消息')
       }
 
     } catch (error) {
@@ -535,23 +745,29 @@ export const useASRStore = create((set, get) => ({
     }
   },
 
-  // ASR启动处理
+  // ASR启动处理 - 来自服务器的启动确认
   onASRStarted: () => {
-    console.log('🎤 ASR识别已启动')
+    console.log('🎤 服务器确认ASR识别已启动')
 
-    const { updateUIState } = get()
+    const { recording, updateRecordingState, updateUIState } = get()
+
+    // 更新录音状态 - 服务器已确认
+    updateRecordingState({
+      isRecording: true,
+      serverConfirmed: true
+    })
 
     // 更新UI状态
     updateUIState({
       showStatus: true,
-      statusText: '正在识别语音...'
+      statusText: '语音识别已启动，请开始说话...'
     })
 
-    // 触发DOM更新事件
-    const event = new CustomEvent('asrUIUpdate', {
+    // 触发统一的ASR事件
+    const event = new CustomEvent('asrServerStarted', {
       detail: {
-        type: 'started',
-        text: '正在识别语音...'
+        timestamp: Date.now(),
+        mode: recording.isContinuousMode ? 'continuous' : 'normal'
       }
     })
     window.dispatchEvent(event)
@@ -565,41 +781,86 @@ export const useASRStore = create((set, get) => ({
 
     // 更新当前识别文本和时间
     const now = Date.now()
+    const currentState = get()
+    const currentText = currentState.recognition.currentText || ''
+
+    // 智能更新currentText - 避免用标点符号覆盖有意义的内容
+    let newCurrentText = text
+    if (text && text.trim()) {
+      const trimmedText = text.trim()
+      // 如果新文本只是标点符号，且当前文本有实际内容，则合并
+      if (/^[。，？！]+$/.test(trimmedText) && currentText && /[\u4e00-\u9fa5a-zA-Z0-9]/.test(currentText)) {
+        // 检查当前文本是否已经以标点符号结尾
+        if (!/[。，？！]$/.test(currentText)) {
+          newCurrentText = currentText + trimmedText
+          console.log('🎤 标点符号与当前文本合并:', newCurrentText)
+        } else {
+          newCurrentText = currentText // 保持原有文本
+          console.log('🎤 保持原有文本（已有标点）:', newCurrentText)
+        }
+      } else {
+        newCurrentText = trimmedText
+      }
+    }
+
     set((state) => ({
       recognition: {
         ...state.recognition,
-        currentText: text,
+        currentText: newCurrentText,
         lastResultTime: now,
         confidence
       }
     }))
 
     // 如果当前结果比之前的结果更长或更有意义，就更新最佳结果
-    if (text && text.trim() && (text.length > recognition.bestText.length || !recognition.bestText)) {
-      // 过滤掉纯标点符号
-      if (text.trim() !== '。' && text.trim() !== '，' && text.trim() !== '？' && text.trim() !== '！') {
+    if (newCurrentText && newCurrentText.trim()) {
+      const trimmedText = newCurrentText.trim()
+      const currentBestText = recognition.bestText || ''
+
+      // 检查是否应该更新bestText
+      let shouldUpdate = false
+
+      // 如果没有bestText，直接更新
+      if (!currentBestText) {
+        shouldUpdate = true
+      }
+      // 如果新文本更长，更新
+      else if (trimmedText.length > currentBestText.length) {
+        shouldUpdate = true
+      }
+      // 如果新文本包含更多实际内容（不只是标点符号），更新
+      else if (trimmedText.length === currentBestText.length) {
+        const hasMoreContent = /[\u4e00-\u9fa5a-zA-Z0-9]/.test(trimmedText) &&
+                              !/[\u4e00-\u9fa5a-zA-Z0-9]/.test(currentBestText)
+        if (hasMoreContent) {
+          shouldUpdate = true
+        }
+      }
+
+      if (shouldUpdate) {
         set((state) => ({
           recognition: {
             ...state.recognition,
-            bestText: text
+            bestText: trimmedText
           }
         }))
+        console.log('🎤 更新bestText:', trimmedText)
       }
     }
 
     // 长按空格键ASR模式处理
     if (recording.isSpaceKeyASRActive) {
-      if (text && text.trim()) {
+      if (newCurrentText && newCurrentText.trim()) {
         // 实时更新显示，但不发送消息
         updateUIState({
-          statusText: `长按识别: ${text}`
+          statusText: `长按识别: ${newCurrentText}`
         })
 
-        console.log('🎤 长按空格键识别结果:', text, '(final:', isFinal, ')')
+        console.log('🎤 长按空格键识别结果:', newCurrentText, '(final:', isFinal, ')')
 
         // 触发输入框更新事件
         const event = new CustomEvent('asrInputUpdate', {
-          detail: { text, mode: 'spaceKey' }
+          detail: { text: newCurrentText, mode: 'spaceKey' }
         })
         window.dispatchEvent(event)
 
@@ -609,12 +870,27 @@ export const useASRStore = create((set, get) => ({
         })
         window.dispatchEvent(realtimeEvent)
 
-        // 更新最佳结果
-        if (text.trim() !== '。' && text.trim() !== '，' && text.trim() !== '？' && text.trim() !== '！') {
+        // 更新最佳结果 - 使用改进的逻辑
+        const trimmedCurrentText = newCurrentText.trim()
+        const currentBestText = recognition.bestText || ''
+
+        let shouldUpdateBest = false
+        if (!currentBestText || trimmedCurrentText.length > currentBestText.length) {
+          shouldUpdateBest = true
+        } else if (trimmedCurrentText.length === currentBestText.length) {
+          // 如果新文本包含更多实际内容，更新
+          const hasMoreContent = /[\u4e00-\u9fa5a-zA-Z0-9]/.test(trimmedCurrentText) &&
+                                !/[\u4e00-\u9fa5a-zA-Z0-9]/.test(currentBestText)
+          if (hasMoreContent) {
+            shouldUpdateBest = true
+          }
+        }
+
+        if (shouldUpdateBest) {
           set((state) => ({
             recognition: {
               ...state.recognition,
-              bestText: text
+              bestText: trimmedCurrentText
             }
           }))
         }
@@ -625,28 +901,87 @@ export const useASRStore = create((set, get) => ({
 
     // 持续模式处理
     if (recording.isContinuousMode) {
-      if (text && text.trim()) {
-        // 实时更新显示
-        updateUIState({
-          statusText: `持续识别: ${text}`
-        })
+      if (newCurrentText && newCurrentText.trim()) {
+        const currentState = get()
+        const trimmedText = newCurrentText.trim()
 
-        console.log('🎤 持续模式识别结果:', text, '(final:', isFinal, ')')
+        // 检查是否是新的语音片段（基于时间间隔和内容变化）
+        const now = Date.now()
+        const timeSinceLastResult = currentState.recognition.lastResultTime ?
+          now - currentState.recognition.lastResultTime : 0
 
-        // 触发输入框更新事件
-        const event = new CustomEvent('asrInputUpdate', {
-          detail: { text, mode: 'continuous' }
-        })
-        window.dispatchEvent(event)
+        // 智能片段检测：基于时间间隔、最终标志和内容变化
+        const isNewSegment = isFinal ||
+                           timeSinceLastResult > 2000 ||
+                           (trimmedText.length > 10 && timeSinceLastResult > 1000)
 
-        // 更新最佳结果
-        if (text.trim() !== '。' && text.trim() !== '，' && text.trim() !== '？' && text.trim() !== '！') {
+        if (isNewSegment) {
+          console.log('🎤 持续模式新片段:', trimmedText, '(final:', isFinal, ', 间隔:', timeSinceLastResult, 'ms)')
+
+          // 添加到片段数组
+          const newSegments = [...currentState.recognition.continuousSegments]
+
+          // 智能处理片段添加
+          let segmentToAdd = trimmedText
+
+          // 如果是最终结果且只包含标点符号，尝试与最后一个片段合并
+          if (isFinal && /^[。，？！]+$/.test(trimmedText) && newSegments.length > 0) {
+            // 如果最后一个片段不以标点符号结尾，则合并
+            const lastSegment = newSegments[newSegments.length - 1]
+            if (!/[。，？！]$/.test(lastSegment)) {
+              newSegments[newSegments.length - 1] = lastSegment + trimmedText
+              console.log('🎤 标点符号与最后片段合并:', newSegments[newSegments.length - 1])
+            } else {
+              // 最后片段已有标点，不重复添加
+              console.log('🎤 跳过重复标点符号:', trimmedText)
+            }
+          } else {
+            // 正常添加片段（如果与最后一个片段不同）
+            if (trimmedText !== currentState.recognition.lastContinuousSegment) {
+              newSegments.push(trimmedText)
+            }
+          }
+
+          // 构建完整的持续文本
+          const fullContinuousText = newSegments.join(' ')
+
+          // 更新状态
           set((state) => ({
             recognition: {
               ...state.recognition,
-              bestText: text
+              continuousText: fullContinuousText,
+              lastContinuousSegment: trimmedText,
+              continuousSegments: newSegments,
+              bestText: fullContinuousText // 更新最佳结果为完整文本
             }
           }))
+
+          // 触发输入框更新事件，使用完整文本
+          const event = new CustomEvent('asrInputUpdate', {
+            detail: { text: fullContinuousText, mode: 'continuous' }
+          })
+          window.dispatchEvent(event)
+
+          updateUIState({
+            statusText: `持续识别: ${fullContinuousText}`
+          })
+        } else {
+          // 中间结果，实时更新显示但不添加到片段
+          console.log('🎤 持续模式中间结果:', trimmedText)
+
+          // 构建临时显示文本（当前片段 + 正在识别的文本）
+          const tempDisplayText = currentState.recognition.continuousText ?
+            `${currentState.recognition.continuousText} ${trimmedText}` : trimmedText
+
+          // 触发输入框更新事件，显示临时文本
+          const event = new CustomEvent('asrInputUpdate', {
+            detail: { text: tempDisplayText, mode: 'continuous_temp' }
+          })
+          window.dispatchEvent(event)
+
+          updateUIState({
+            statusText: `持续识别中: ${tempDisplayText}`
+          })
         }
       }
       // 持续模式不需要手动发送，由沉默检测自动处理
@@ -656,23 +991,38 @@ export const useASRStore = create((set, get) => ({
     // 非持续模式的原有逻辑
     if (isFinal) {
       // 最终结果 - 但不依赖最终结果来发送消息
-      console.log('🎤 ASR最终结果:', text)
+      console.log('🎤 ASR最终结果:', newCurrentText)
 
-      let finalText = text
-      // 如果最终结果不是纯标点符号，使用它
-      if (text && text.trim() && text.trim() !== '。' && text.trim() !== '，' && text.trim() !== '？' && text.trim() !== '！') {
-        finalText = text
-        updateUIState({
-          statusText: `识别完成: ${text}`
-        })
-      } else {
-        // 最终结果是标点符号，使用最佳结果
-        finalText = recognition.bestText
-        updateUIState({
-          statusText: `识别完成: ${recognition.bestText}`
-        })
-        console.log('🎤 最终结果为标点，使用最佳结果:', recognition.bestText)
+      let finalText = newCurrentText
+      const trimmedText = newCurrentText ? newCurrentText.trim() : ''
+      const currentBestText = recognition.bestText || ''
+
+      // 智能选择最终文本
+      if (trimmedText) {
+        // 如果最终结果包含实际内容（不只是标点符号）
+        if (/[\u4e00-\u9fa5a-zA-Z0-9]/.test(trimmedText)) {
+          finalText = trimmedText
+          console.log('🎤 使用最终结果（包含实际内容）:', finalText)
+        }
+        // 如果最终结果只是标点符号，但bestText为空，仍然使用最终结果
+        else if (!currentBestText) {
+          finalText = trimmedText
+          console.log('🎤 使用最终结果（标点符号，但无更好选择）:', finalText)
+        }
+        // 如果最终结果是标点符号，且bestText有内容，组合使用
+        else {
+          finalText = currentBestText + trimmedText
+          console.log('🎤 组合使用bestText和最终标点:', finalText)
+        }
+      } else if (currentBestText) {
+        // 如果最终结果为空，使用bestText
+        finalText = currentBestText
+        console.log('🎤 使用bestText（最终结果为空）:', finalText)
       }
+
+      updateUIState({
+        statusText: `识别完成: ${finalText}`
+      })
 
       // 触发输入框更新事件
       const event = new CustomEvent('asrInputUpdate', {
@@ -717,25 +1067,33 @@ export const useASRStore = create((set, get) => ({
     }
   },
 
-  // ASR停止处理
+  // ASR停止处理 - 来自服务器的停止确认
   onASRStopped: () => {
-    console.log('🎤 ASR识别已停止')
+    console.log('🎤 服务器确认ASR识别已停止')
 
-    const { recording, updateRecordingState, updateUIState, updateContinuousASRUI, updateASRUI } = get()
+    const { recording, recognition, updateRecordingState, updateUIState } = get()
 
-    updateRecordingState({ isRecording: false })
+    // 更新录音状态
+    updateRecordingState({
+      isRecording: false,
+      serverConfirmed: false
+    })
 
-    if (recording.isContinuousMode) {
-      updateContinuousASRUI()
-    } else {
-      updateASRUI()
-    }
+    // 更新UI状态
+    updateUIState({
+      showStatus: false,
+      statusText: ''
+    })
 
-    // 触发DOM更新事件
-    const event = new CustomEvent('asrUIUpdate', {
+    // 获取最终识别结果
+    const finalText = recognition.continuousText || recognition.bestText || recognition.currentText || ''
+
+    // 触发服务器停止事件
+    const event = new CustomEvent('asrServerStopped', {
       detail: {
-        type: 'stopped',
-        mode: recording.isContinuousMode ? 'continuous' : 'normal'
+        timestamp: Date.now(),
+        mode: recording.isContinuousMode ? 'continuous' : 'normal',
+        finalText: finalText.trim()
       }
     })
     window.dispatchEvent(event)
@@ -813,9 +1171,14 @@ export const useASRStore = create((set, get) => ({
       }
     }))
 
-    // 触发错误事件
-    const event = new CustomEvent('asrError', {
-      detail: { error: errorMessage }
+    // 触发统一的错误事件
+    const event = new CustomEvent('asrServerError', {
+      detail: {
+        error: errorMessage,
+        originalError: error,
+        timestamp: Date.now(),
+        mode: recording.isContinuousMode ? 'continuous' : 'normal'
+      }
     })
     window.dispatchEvent(event)
   },
@@ -1091,6 +1454,23 @@ export const useASRStore = create((set, get) => ({
     }
   },
 
+  // 获取ASR状态摘要
+  getASRStatus: () => {
+    const state = get()
+    return {
+      isRecording: state.recording.isRecording,
+      isContinuousMode: state.recording.isContinuousMode,
+      isConnected: state.connection.isConnected,
+      serverConfirmed: state.recording.serverConfirmed,
+      currentText: state.recognition.currentText,
+      bestText: state.recognition.bestText,
+      continuousText: state.recognition.continuousText,
+      segmentCount: state.recognition.continuousSegments.length,
+      audioStats: state.audio.stats,
+      lastError: state.connection.lastError
+    }
+  },
+
   // 重置所有状态
   reset: () => {
     const { audio, config, recording } = get()
@@ -1121,20 +1501,30 @@ export const useASRStore = create((set, get) => ({
         recordingStartTime: null,
         spaceKeyStartTime: null,
         spaceKeyTimer: null,
-        continuousSilenceTimer: null
+        continuousSilenceTimer: null,
+        serverConfirmed: false
       },
       recognition: {
         currentText: '',
         bestText: '',
         lastResultTime: null,
-        confidence: 0
+        confidence: 0,
+        continuousText: '',
+        lastContinuousSegment: '',
+        continuousSegments: []
       },
       audio: {
         stream: null,
         context: null,
         processor: null,
         volumeThreshold: 0.01,
-        source: null
+        source: null,
+        stats: {
+          totalChunks: 0,
+          silentChunks: 0,
+          averageVolume: 0,
+          lastChunkTime: null
+        }
       },
       ui: {
         showStatus: false,
@@ -1145,9 +1535,29 @@ export const useASRStore = create((set, get) => ({
       config: {
         ...get().config,
         autoSendTimer: null
+      },
+      connection: {
+        ...get().connection,
+        retryCount: 0,
+        lastError: null
       }
     })
   }
 }))
+
+// Hook 用于连接 ASR Store 和 WebSocket Context
+export const useASRWithWebSocket = () => {
+  const asrStore = useASRStore()
+
+  // 这个 Hook 需要在组件中使用，以便访问 WebSocket Context
+  const connectToWebSocket = (wsRef, connectionStatus) => {
+    asrStore.updateConnectionFromContext(wsRef, connectionStatus)
+  }
+
+  return {
+    ...asrStore,
+    connectToWebSocket
+  }
+}
 
 export default useASRStore
