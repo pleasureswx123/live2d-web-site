@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useVoice } from './VoiceContext'
 import { useUserAuthStore } from '../stores/userAuthStore'
 import { useChatMessagesStore } from '../stores/chatMessagesStore'
-import { useTypingIndicatorStore } from '../stores/typingIndicatorStore'
 import { playAudioFromBase64, showAudioPrompt, getAudioStatus } from '../utils/audioUtils'
 import { useASRStore } from '../stores/asrStore'
 import { useProfileStore } from '../stores/profileStore'
@@ -25,9 +24,8 @@ export const WebSocketProvider = ({ children }) => {
     finishStreamingMessage,
     showSearchIndicator,
     hideSearchIndicator,
-    scrollToBottom
+    switchToUser,
   } = useChatMessagesStore()
-  const { updateUIState } = useTypingIndicatorStore()
 
   // 获取 ASR Store 的方法（在组件顶层调用）
   const asrStore = useASRStore()
@@ -157,7 +155,6 @@ export const WebSocketProvider = ({ children }) => {
       case 'generation_start':
         // 开始生成时创建新的机器人消息框
         createNewBotMessageForWebSocket()
-        showTypingIndicator()
         break
 
       case 'generation_chunk':
@@ -167,7 +164,6 @@ export const WebSocketProvider = ({ children }) => {
         break
 
       case 'generation_end':
-        hideTypingIndicator()
         finishStreamingMessage() // 完成流式消息
         break
 
@@ -269,31 +265,34 @@ export const WebSocketProvider = ({ children }) => {
         break
 
       case 'asr_started':
+        debugger
         // ASR识别开始
         console.log('🎤 ASR识别已开始')
         onASRStarted()
         break
 
       case 'asr_result':
+        debugger
         // ASR识别结果
         console.log('🎤 ASR识别结果:', data.text, '(final:', data.is_final, ')')
         onASRResult(data.text, data.is_final, data.confidence)
         break
 
       case 'asr_stopped':
+        debugger
         // ASR识别停止
         console.log('🎤 ASR识别已停止')
         onASRStopped()
         break
 
       case 'asr_error':
+        debugger
         // ASR识别错误
         console.error('❌ ASR识别错误:', data.error)
         onASRError(data.error)
         break
 
       case 'error':
-        hideTypingIndicator()
         // 如果有正在进行的流式消息，更新其内容为错误信息
         const chatStore = useChatMessagesStore.getState()
         if (chatStore.currentStreamingMessageId) {
@@ -339,16 +338,6 @@ export const WebSocketProvider = ({ children }) => {
     }
   }
 
-  const showTypingIndicator = () => {
-    // 显示指示器
-    updateUIState({ isVisible: true });
-    scrollToBottom();
-  }
-
-  const hideTypingIndicator = () => {
-    // 隐藏指示器
-    updateUIState({ isVisible: false });
-  }
 
   const recordLLMFirstToken = () => {
     console.log('⏱️ 记录LLM首字响应时间 - 待实现')
@@ -457,6 +446,10 @@ export const WebSocketProvider = ({ children }) => {
         isTTSGenerationComplete && !isPlayingQueueRef.current) {
       console.log('✅ 所有音频播放完成')
       // 可以在这里添加完成回调
+      sendMessage({
+        type: 'audio_playback_complete',
+        message: '音频播放完成'
+      })
     }
   }
 
@@ -768,6 +761,8 @@ export const WebSocketProvider = ({ children }) => {
   useEffect(() => {
     if (currentUser?.id) {
       connectWebSocket()
+      // 更新欢迎消息（集成点 - 可以被聊天系统调用）
+      switchToUser(currentUser)
     } else {
       disconnectWebSocket()
     }

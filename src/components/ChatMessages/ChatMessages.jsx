@@ -8,7 +8,7 @@ import { ArrowDown } from 'lucide-react'
 
 /**
  * 聊天消息容器组件
- * 
+ *
  * @param {Object} props - 组件属性
  * @param {string} props.className - 额外的CSS类名
  * @param {boolean} props.showAvatar - 是否显示头像
@@ -67,7 +67,7 @@ const ChatMessages = ({
 
     const handleScroll = () => {
       checkScrollPosition()
-      
+
       // 检查是否需要显示滚动到底部按钮
       const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100
       setShowScrollButton(!isAtBottom && messages.length > 0)
@@ -150,8 +150,6 @@ const ChatMessages = ({
   // 渲染消息列表
   const renderMessages = () => {
     if (enableVirtualScroll && messages.length > 100) {
-      // TODO: 实现虚拟滚动
-      // 这里可以集成 react-window 或 react-virtualized
       return messages.map((message) => (
         <Message
           key={message.id}
