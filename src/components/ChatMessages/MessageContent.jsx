@@ -5,7 +5,7 @@ import FileAttachment from './FileAttachment'
 /**
  * 消息内容组件
  * 处理消息文本格式化和附件显示
- * 
+ *
  * @param {Object} props - 组件属性
  * @param {string} props.content - 消息内容
  * @param {Array} props.attachments - 附件列表
@@ -88,7 +88,7 @@ const MessageContent = ({
       )}
 
       {/* 自定义样式 */}
-      <style jsx>{`
+      <style>{`
         .message-content pre {
           background-color: hsl(var(--muted));
           border: 1px solid hsl(var(--border));
