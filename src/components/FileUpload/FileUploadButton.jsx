@@ -132,7 +132,7 @@ const FileUploadButton = ({
         variant={variant}
         size={size}
         className={cn(
-          "relative transition-all duration-200",
+          "relative transition-all duration-200 p-2",
           ui.isUploading && "cursor-not-allowed",
           error.message && error.type === 'validation' && "border-destructive",
           className
@@ -142,7 +142,7 @@ const FileUploadButton = ({
         {...props}
       >
         {getIcon()}
-        <span className="ml-2">{getButtonText()}</span>
+        {/*<span className="ml-2">{getButtonText()}</span>*/}
 
         {/* 上传进度指示器 */}
         {ui.isUploading && (

@@ -176,7 +176,7 @@ const Message = ({
     >
       <div
         className={cn(
-          'message-wrapper flex items-start space-x-3 max-w-[80%] p-4',
+          'message-wrapper flex items-start space-x-3 p-4',
           message.type === 'user' && 'flex-row-reverse space-x-reverse'
         )}
       >
