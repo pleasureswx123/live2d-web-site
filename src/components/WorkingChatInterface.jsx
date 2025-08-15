@@ -441,146 +441,245 @@ const WorkingChatInterface = ({
       {/* 输入区域 */}
       <div className="flex-shrink-0 border-t bg-background">
         <div className="p-4 space-y-3">
-        {/* 文件预览 */}
+          {/* 文件预览 */}
           {selectedFile && (
-            <FilePreview
-              file={selectedFile}
-              onRemove={removeFile}
-            />
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3">
+              <FilePreview
+                file={selectedFile}
+                onRemove={removeFile}
+              />
+            </div>
           )}
 
 
 
-          {/* 输入框区域 */}
-          <div className="flex items-end space-x-2">
-            {/* 文件上传按钮 */}
-            {enableFileUpload && (
-              <FileUploadButton
-                onFileSelect={handleFileSelect}
-                disabled={isSending || isUploading}
-              >
-                <Paperclip className="w-4 h-4" />
-              </FileUploadButton>
-            )}
+          {/* 重构的输入框区域 */}
+          <div className="relative">
+            {/* 主输入容器 */}
+            <div className={`relative bg-white border rounded-xl shadow-sm transition-all duration-200 ${
+              recording.isSpaceKeyASRActive || isSpacePressed
+                ? 'border-red-300 shadow-red-100'
+                : 'border-gray-200 hover:border-gray-300 focus-within:border-blue-500 focus-within:shadow-blue-100'
+            }`}>
 
-            {/* 消息输入框 */}
-            <div className="flex-1 relative">
               {/* 录音状态覆盖层 */}
               {(recording.isSpaceKeyASRActive || isSpacePressed) && (
-                <div className="absolute inset-0 bg-red-50 border-2 border-red-200 rounded-md flex items-center justify-center z-10">
-                  <div className="flex items-center space-x-3 text-red-600">
-                    <div className="flex space-x-1">
-                      <div className="w-1 h-4 bg-red-500 rounded animate-pulse" style={{animationDelay: '0ms'}}></div>
-                      <div className="w-1 h-6 bg-red-500 rounded animate-pulse" style={{animationDelay: '150ms'}}></div>
-                      <div className="w-1 h-3 bg-red-500 rounded animate-pulse" style={{animationDelay: '300ms'}}></div>
-                      <div className="w-1 h-5 bg-red-500 rounded animate-pulse" style={{animationDelay: '450ms'}}></div>
-                      <div className="w-1 h-2 bg-red-500 rounded animate-pulse" style={{animationDelay: '600ms'}}></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-red-50 to-pink-50 rounded-xl flex items-center justify-center z-20 backdrop-blur-sm">
+                  <div className="flex items-center space-x-4 text-red-600">
+                    {/* 动态波形 */}
+                    <div className="flex items-center space-x-1">
+                      {[...Array(5)].map((_, i) => (
+                        <div
+                          key={i}
+                          className="w-1 bg-red-500 rounded-full"
+                          style={{
+                            height: `${16 + Math.sin(i * 0.5) * 6}px`,
+                            animation: `wave 1.5s ease-in-out infinite`,
+                            animationDelay: `${i * 0.1}s`
+                          }}
+                        />
+                      ))}
                     </div>
-                    <span className="font-medium text-sm">正在录音... 松开空格键结束</span>
+                    <style jsx>{`
+                      @keyframes wave {
+                        0%, 100% { transform: scaleY(1); }
+                        50% { transform: scaleY(1.8); }
+                      }
+                    `}</style>
+                    <div className="text-center">
+                      <div className="font-semibold text-sm">正在录音</div>
+                      <div className="text-xs opacity-75">松开空格键结束</div>
+                    </div>
                   </div>
                 </div>
               )}
 
-              <Textarea
-                ref={textareaRef}
-                value={message}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                onCompositionStart={() => setIsComposing(true)}
-                onCompositionEnd={() => setIsComposing(false)}
-                placeholder={placeholder}
-                maxLength={maxMessageLength}
-                rows={1}
-                className="min-h-[40px] max-h-[120px] resize-none pr-12"
-                disabled={isSending}
-              />
-
-              {/* 字符计数 */}
-              <div className="absolute bottom-1 right-1 text-xs text-muted-foreground">
-                {message.length}/{maxMessageLength}
-              </div>
-            </div>
-
-            {/* ASR状态指示器 */}
-            {enableASR && (
-              <div className="flex items-center space-x-1">
-                {/* 连接状态指示 */}
-                <div className={`w-2 h-2 rounded-full ${
-                  asrConnection.isConnected ? 'bg-green-500' : 'bg-red-500'
-                }`} title={asrConnection.isConnected ? 'ASR已连接' : 'ASR未连接'} />
-
-                {/* 录音状态指示 */}
-                <div className={`p-1 rounded-full transition-all duration-200 ${
-                  recording.isSpaceKeyASRActive || isSpacePressed
-                    ? 'bg-red-100 text-red-600 animate-pulse'
-                    : 'bg-gray-100 text-gray-400'
-                }`}>
-                  <Mic className="w-3 h-3" />
-                </div>
-              </div>
-            )}
-
-            {/* 发送按钮 */}
-            <Button
-              onClick={handleSendMessage}
-              disabled={(!message.trim() && !selectedFile) || isSending || connectionStatus !== 'connected'}
-              className="flex-shrink-0"
-            >
-              <Send className="w-4 h-4" />
-            </Button>
-          </div>
-
-          {/* 改进的状态提示 */}
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center space-x-3">
-              {/* 连接状态 */}
-              {connectionStatus !== 'connected' && (
-                <div className="flex items-center space-x-1 text-red-500">
-                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
-                  <span>{connectionStatus === 'connecting' ? '正在连接...' : '连接已断开'}</span>
-                </div>
-              )}
-
-              {/* ASR状态 */}
-              {enableASR && (
-                <div className="flex items-center space-x-1">
-                  {recording.isSpaceKeyASRActive || isSpacePressed ? (
-                    <div className="flex items-center space-x-1 text-red-500">
-                      <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
-                      <span>正在录音...</span>
+              {/* 输入框内容区域 */}
+              <div className="flex items-end p-3 space-x-2 sm:space-x-3">
+                {/* 左侧工具栏 */}
+                <div className="flex items-center space-x-1 sm:space-x-2">
+                  {/* 文件上传按钮 */}
+                  {enableFileUpload && (
+                    <div className="relative group">
+                      <FileUploadButton
+                        onFileSelect={handleFileSelect}
+                        disabled={isSending || isUploading}
+                      >
+                        <div className={`p-2 rounded-lg transition-all duration-200 ${
+                          isSending || isUploading
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-800 cursor-pointer'
+                        }`}>
+                          <Paperclip className="w-4 h-4" />
+                        </div>
+                      </FileUploadButton>
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                        添加附件
+                      </div>
                     </div>
-                  ) : asrConnection.isConnected ? (
-                    <div className="flex items-center space-x-1 text-green-600">
-                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                      <span>语音识别就绪</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center space-x-1 text-orange-500">
-                      <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
-                      <span>语音识别未连接</span>
+                  )}
+
+                  {/* ASR状态指示器 */}
+                  {enableASR && (
+                    <div className="relative group">
+                      <div className={`p-2 rounded-lg transition-all duration-200 ${
+                        recording.isSpaceKeyASRActive || isSpacePressed
+                          ? 'bg-red-100 text-red-600'
+                          : asrConnection.isConnected
+                          ? 'bg-green-50 text-green-600'
+                          : 'bg-orange-50 text-orange-600'
+                      }`}>
+                        <Mic className="w-4 h-4" />
+                      </div>
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                        {recording.isSpaceKeyASRActive || isSpacePressed
+                          ? '正在录音'
+                          : asrConnection.isConnected
+                          ? '语音识别就绪'
+                          : '语音识别未连接'
+                        }
+                      </div>
                     </div>
                   )}
                 </div>
-              )}
 
-              {/* 识别结果预览 */}
-              {recognition.currentText && (recording.isSpaceKeyASRActive || isSpacePressed) && (
-                <div className="flex items-center space-x-1 text-blue-600 max-w-xs">
-                  <span className="truncate">识别: {recognition.currentText}</span>
+                {/* 主输入区域 */}
+                <div className="flex-1 relative">
+                  <Textarea
+                    ref={textareaRef}
+                    value={message}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyDown}
+                    onCompositionStart={() => setIsComposing(true)}
+                    onCompositionEnd={() => setIsComposing(false)}
+                    placeholder={placeholder}
+                    maxLength={maxMessageLength}
+                    rows={1}
+                    className="w-full min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent focus:outline-none focus:ring-0 placeholder:text-gray-400 text-gray-900"
+                    disabled={isSending}
+                  />
+
+                  {/* 字符计数和识别结果 */}
+                  <div className="absolute bottom-1 right-1 flex items-center space-x-2">
+                    {/* 实时识别结果预览 */}
+                    {recognition.currentText && (recording.isSpaceKeyASRActive || isSpacePressed) && (
+                      <div className="px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded-md max-w-32 truncate">
+                        {recognition.currentText}
+                      </div>
+                    )}
+
+                    {/* 字符计数 */}
+                    <div className={`text-xs transition-colors ${
+                      message.length > maxMessageLength * 0.9
+                        ? 'text-red-500'
+                        : message.length > maxMessageLength * 0.7
+                        ? 'text-orange-500'
+                        : 'text-gray-400'
+                    }`}>
+                      {message.length}/{maxMessageLength}
+                    </div>
+                  </div>
                 </div>
-              )}
+
+                {/* 发送按钮 */}
+                <div className="relative group">
+                  <Button
+                    onClick={handleSendMessage}
+                    disabled={(!message.trim() && !selectedFile) || isSending || connectionStatus !== 'connected'}
+                    className={`p-2.5 rounded-lg transition-all duration-200 transform hover:scale-105 active:scale-95 ${
+                      (!message.trim() && !selectedFile) || isSending || connectionStatus !== 'connected'
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed hover:scale-100'
+                        : 'bg-blue-500 text-white hover:bg-blue-600 shadow-sm hover:shadow-md'
+                    }`}
+                  >
+                    {isSending ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                  </Button>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                    {isSending ? '发送中...' : '发送消息'}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* 使用提示 */}
-            <div className="flex items-center space-x-2 text-muted-foreground">
-              {enableASR && asrConnection.isConnected && (
-                <div className="flex items-center space-x-1">
-                  <kbd className="px-1.5 py-0.5 text-xs bg-gray-100 border border-gray-300 rounded">Space</kbd>
-                  <span>长按进行语音输入</span>
+            {/* 底部状态栏 */}
+            <div className="flex items-center justify-between mt-2 px-1">
+              {/* 左侧状态信息 */}
+              <div className="flex items-center space-x-4 text-xs">
+                {/* 连接状态 */}
+                <div className="flex items-center space-x-1.5">
+                  <div className={`w-2 h-2 rounded-full ${
+                    connectionStatus === 'connected'
+                      ? 'bg-green-500'
+                      : connectionStatus === 'connecting'
+                      ? 'bg-yellow-500 animate-pulse'
+                      : 'bg-red-500'
+                  }`} />
+                  <span className={`${
+                    connectionStatus === 'connected'
+                      ? 'text-green-600'
+                      : connectionStatus === 'connecting'
+                      ? 'text-yellow-600'
+                      : 'text-red-600'
+                  }`}>
+                    {connectionStatus === 'connected'
+                      ? '已连接'
+                      : connectionStatus === 'connecting'
+                      ? '连接中...'
+                      : '连接断开'
+                    }
+                  </span>
                 </div>
-              )}
+
+                {/* ASR状态 */}
+                {enableASR && (
+                  <div className="flex items-center space-x-1.5">
+                    <div className={`w-2 h-2 rounded-full ${
+                      recording.isSpaceKeyASRActive || isSpacePressed
+                        ? 'bg-red-500 animate-pulse'
+                        : asrConnection.isConnected
+                        ? 'bg-green-500'
+                        : 'bg-gray-400'
+                    }`} />
+                    <span className={`${
+                      recording.isSpaceKeyASRActive || isSpacePressed
+                        ? 'text-red-600'
+                        : asrConnection.isConnected
+                        ? 'text-green-600'
+                        : 'text-gray-500'
+                    }`}>
+                      {recording.isSpaceKeyASRActive || isSpacePressed
+                        ? '录音中'
+                        : asrConnection.isConnected
+                        ? '语音就绪'
+                        : '语音未连接'
+                      }
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* 右侧快捷键提示 */}
+              <div className="hidden sm:flex items-center space-x-3 text-xs text-gray-500">
+                {enableASR && asrConnection.isConnected && (
+                  <div className="flex items-center space-x-1.5">
+                    <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">Space</kbd>
+                    <span>长按语音输入</span>
+                  </div>
+                )}
+                <div className="flex items-center space-x-1.5">
+                  <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">⌘</kbd>
+                  <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">↵</kbd>
+                  <span>发送</span>
+                </div>
+              </div>
             </div>
           </div>
+
+
         </div>
       </div>
     </div>
