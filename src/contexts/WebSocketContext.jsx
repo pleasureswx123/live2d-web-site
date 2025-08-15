@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useVoice } from './VoiceContext'
 import { useUserAuthStore } from '../stores/userAuthStore'
 import { useChatMessagesStore } from '../stores/chatMessagesStore'
@@ -6,6 +6,7 @@ import { playAudioFromBase64, showAudioPrompt, getAudioStatus } from '../utils/a
 import { useASRStore } from '../stores/asrStore'
 import { useProfileStore } from '../stores/profileStore'
 import { useConversionStore } from '../stores/conversionStore'
+import { useProactiveChatStore } from '../stores/proactiveChatStore'
 
 // 创建 WebSocket Context
 const WebSocketContext = createContext()
@@ -31,6 +32,7 @@ export const WebSocketProvider = ({ children }) => {
   const asrStore = useASRStore()
   const { updateProfileActivity } = useProfileStore();
   const { addConversionActivity } = useConversionStore();
+  const { isProactiveChatEnabled } = useProactiveChatStore();
 
   // 当WebSocket连接状态改变时，更新ASR Store
   useEffect(() => {
@@ -138,17 +140,6 @@ export const WebSocketProvider = ({ children }) => {
   }
 
   // 处理 WebSocket 消息
-
-  // TTS容错与可视化统计：为当前流式消息标记TTS状态（定义在组件作用域，供 switch 分支调用）
-  const updateTTSMeta = (updates) => {
-    try {
-      const chatStore = useChatMessagesStore.getState()
-      chatStore.updateCurrentStreamingMessageMeta?.(updates)
-    } catch (e) {
-      console.warn('TTS元信息更新失败', e)
-    }
-  }
-
   const handleWebSocketMessage = (data) => {
     console.log('📥 收到WebSocket消息:', data.type, data)
 
@@ -209,8 +200,6 @@ export const WebSocketProvider = ({ children }) => {
         console.log('🎵 收到TTS音频消息（回退模式）:', {
           type: data.type,
           format: data.format,
-
-
           audioDataLength: data.audio_data ? data.audio_data.length : 0,
           text: data.text
         })
@@ -220,7 +209,7 @@ export const WebSocketProvider = ({ children }) => {
         break
 
       case 'tts_audio_chunk':
-        // 处理流式TTS音频片段 + 容错统计
+        // 处理流式TTS音频片段
         console.log('🎵 收到流式TTS音频片段:', {
           type: data.type,
           format: data.format,
@@ -229,34 +218,20 @@ export const WebSocketProvider = ({ children }) => {
           text: data.text ? data.text.substring(0, 30) + '...' : 'null',
           isProactive: data.is_proactive || false
         })
-
-        // 记录收到的片段序号和计数
-        if (typeof data.order === 'number') {
-          updateTTSMeta({ lastOrder: data.order })
-          const chatStore = useChatMessagesStore.getState()
-          chatStore.incrementCurrentStreamingMessageTTSChunks?.()
-        }
-
-        if (data.audio_data && typeof data.order === 'number') {
+        if (data.audio_data && data.order) {
           playTTSAudioChunkWithOrder(data.audio_data, data.format || 'mp3', data.order)
-          // 每次入缓冲后尝试按策略flush
-          flushOrderedAudioWithPolicy()
         } else if (data.audio_data) {
-          // 兼容没有顺序号的情况 - 直接入队播放
+          // 兼容没有顺序号的情况
           playTTSAudioChunk(data.audio_data, data.format || 'mp3')
         } else {
           console.error('❌ 收到的tts_audio_chunk消息没有audio_data字段')
-          updateTTSMeta({ lastError: 'missing_audio_data' })
         }
         break
 
       case 'tts_complete':
-        // TTS生成完成，给短暂等待时间收集迟到片段，然后收尾
-        console.log('🎵 TTS生成完成，等待迟到片段...')
-        setTimeout(() => {
-          console.log('🎵 短等待结束，执行TTS收尾')
-          onTTSComplete()
-        }, veryShortGraceMsRef.current)
+        // TTS生成完成（播放可能仍在继续，待 onTTSComplete 统一收尾）
+        console.log('🎵 TTS生成完成')
+        onTTSComplete()
         break
 
       case 'voice_change_success':
@@ -329,63 +304,17 @@ export const WebSocketProvider = ({ children }) => {
         onASRResult(data.text, data.is_final, data.confidence)
         break
 
-      case 'asr_started':
-        // ASR识别开始 - 标记用户开始语音输入，抢占并清理TTS（互斥：停止当前TTS并上报完成）
-        console.log('🎤 ASR识别已开始，停止并清理TTS队列（互斥）')
-        isUserSpeakingRef.current = true
-        // 停止当前TTS播放
-        if (currentAudioRef.current && !currentAudioRef.current.paused) {
-          try { currentAudioRef.current.pause() } catch {}
-          console.log('🎵 已停止当前TTS播放')
-        }
-        // 清空TTS队列与缓冲
-        audioQueueRef.current = []
-        orderedAudioBufferRef.current.clear()
-        isPlayingQueueRef.current = false
-        expectedOrderRef.current = 1
-
-        // 标记本次TTS会话完成并上报
-        isTTSGenerationCompleteRef.current = true
-        try { checkAllAudioPlaybackComplete('asr_interrupt') } catch (e) { console.warn('检查播放完成失败', e) }
-        onASRStarted()
-        // 防止重复上报
-        const sentBefore = playbackCompleteSentRef.current
-        // 标记本轮已发送完成（若满足条件）在 checkAllAudioPlaybackComplete 内判断
-
-        break
-
-      case 'asr_result':
-        // ASR识别结果
-        console.log('🎤 ASR识别结果:', data.text, '(final:', data.is_final, ')')
-        onASRResult(data.text, data.is_final, data.confidence)
-        break
-
       case 'asr_stopped':
-        // ASR识别停止 - 用户结束语音输入，可以恢复TTS
-        console.log('🎤 ASR识别已停止，恢复TTS播放能力')
-        isUserSpeakingRef.current = false
-        // 恢复TTS播放推进（如有待播放内容）
-        setTimeout(() => {
-          if (!isUserSpeakingRef.current && audioQueueRef.current.length > 0 && !isPlayingQueueRef.current) {
-            console.log('🎵 恢复TTS播放队列')
-            playAudioQueue()
-          }
-        }, 100)
+        // ASR识别停止
+        console.log('🎤 ASR识别已停止')
         onASRStopped()
         break
 
       case 'asr_error':
-        // ASR识别错误 - 结束语音输入状态
+        // ASR识别错误
         console.error('❌ ASR识别错误:', data.error)
-        isUserSpeakingRef.current = false
         onASRError(data.error)
         break
-      case 'audio_playback_complete':
-        // 服务端确认接收到了音频播放完成的通知（或服务端主动告知）
-        console.log('🎵 服务端已确认音频播放完成')
-        break
-
-
 
       case 'error':
         // 如果有正在进行的流式消息，更新其内容为错误信息
@@ -402,68 +331,6 @@ export const WebSocketProvider = ({ children }) => {
       default:
         console.log('🔍 未处理的消息类型:', data.type)
         break
-    }
-  }
-
-
-  // TTS重排策略参数与状态
-  const missingSetRef = useRef(new Set())
-  const lastFlushAtRef = useRef(Date.now())
-  const reorderWindowMsRef = useRef(600) // 重排等待窗口
-  const maxBufferSizeRef = useRef(200)   // 缓冲上限
-  const maxGapRef = useRef(1)            // 允许跳过的连续缺口上限
-  const veryShortGraceMsRef = useRef(200) // tts_complete后短等待
-  const isUserSpeakingRef = useRef(false) // 用户是否正在语音输入（与TTS互斥）
-
-  // 防重复上报控制
-  const playbackCompleteSentRef = useRef(false)
-
-  // 按策略flush有序缓冲到播放队列
-  const flushOrderedAudioWithPolicy = () => {
-    // 用户正在语音输入时，暂停TTS播放推进
-    if (isUserSpeakingRef.current) {
-      console.log('🎤 用户正在语音输入，暂停TTS播放推进')
-      return
-    }
-
-    const orderedAudioBuffer = orderedAudioBufferRef.current
-    const audioQueue = audioQueueRef.current
-    let expectedOrder = expectedOrderRef.current
-
-    let progressed = false
-    while (orderedAudioBuffer.has(expectedOrder)) {
-      const audioChunk = orderedAudioBuffer.get(expectedOrder)
-      orderedAudioBuffer.delete(expectedOrder)
-      audioQueue.push(audioChunk)
-      expectedOrder += 1
-      progressed = true
-    }
-
-    if (progressed) {
-      expectedOrderRef.current = expectedOrder
-      lastFlushAtRef.current = Date.now()
-      // 如未播放且用户未在说话则启动
-      if (!isPlayingQueueRef.current && !isUserSpeakingRef.current) {
-        playAudioQueue()
-      }
-      return
-    }
-
-    // 没有进展：考虑是否跳过一个缺口
-    const now = Date.now()
-    const waited = now - lastFlushAtRef.current
-    if (waited >= reorderWindowMsRef.current) {
-      // 若缓冲过大也应前进
-      const overBuffered = orderedAudioBuffer.size > maxBufferSizeRef.current
-      if (maxGapRef.current > 0 || overBuffered) {
-        missingSetRef.current.add(expectedOrder)
-        console.warn(`🎵 缺失片段 #${expectedOrder}，等待超时${waited}ms${overBuffered ? ' / 缓冲过大' : ''}，执行跳过`)
-        updateTTSMeta({ skipped: (updateTTSMeta.skipped || 0) + 1, lastSkipped: expectedOrder })
-        expectedOrderRef.current = expectedOrder + 1
-        lastFlushAtRef.current = now
-        // 跳过后再次尝试flush（若新的expectedOrder存在则推进播放）
-        flushOrderedAudioWithPolicy()
-      }
     }
   }
 
@@ -584,38 +451,10 @@ export const WebSocketProvider = ({ children }) => {
     }
 
     playNextAudio()
-
-  // TTS容错：检测播放队列“长时间空闲但未完成”的异常，触发收尾与告警
-  const ttsWatchdogRef = useRef({ timer: null, lastProgressAt: Date.now() })
-
-  const markTTSProgress = useCallback(() => {
-    ttsWatchdogRef.current.lastProgressAt = Date.now()
-  }, [])
-
-  useEffect(() => {
-    if (ttsWatchdogRef.current.timer) clearInterval(ttsWatchdogRef.current.timer)
-    ttsWatchdogRef.current.timer = setInterval(() => {
-      const idleMs = Date.now() - ttsWatchdogRef.current.lastProgressAt
-      // 超过15秒未有播放进度则触发收尾
-      if (idleMs > 15000) {
-        console.warn('🎵 TTS播放疑似卡住，触发收尾并上报')
-        try { onTTSComplete() } catch {}
-        ttsWatchdogRef.current.lastProgressAt = Date.now()
-        const payload = { type: 'audio_playback_complete', message: 'watchdog_triggered', reason: 'watchdog' }
-        let sentOk = false
-        try { sentOk = sendMessage ? sendMessage(payload) : false } catch {}
-        if (!sentOk && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify(payload))
-        }
-      }
-    }, 5000)
-    return () => { if (ttsWatchdogRef.current.timer) clearInterval(ttsWatchdogRef.current.timer) }
-  }, [onTTSComplete])
-
   }
 
   // 检查所有音频播放是否完成
-  const checkAllAudioPlaybackComplete = (reason = 'natural') => {
+  const checkAllAudioPlaybackComplete = () => {
     const audioQueue = audioQueueRef.current
     const orderedAudioBuffer = orderedAudioBufferRef.current
     const isTTSGenerationComplete = isTTSGenerationCompleteRef.current
@@ -624,28 +463,21 @@ export const WebSocketProvider = ({ children }) => {
       queueLength: audioQueue.length,
       bufferSize: orderedAudioBuffer.size,
       ttsComplete: isTTSGenerationComplete,
-      isPlaying: isPlayingQueueRef.current,
-      sentBefore: playbackCompleteSentRef.current,
-      reason
+      isPlaying: isPlayingQueueRef.current
     })
 
     if (audioQueue.length === 0 && orderedAudioBuffer.size === 0 &&
-        isTTSGenerationComplete && !isPlayingQueueRef.current) {
+      isTTSGenerationComplete && !isPlayingQueueRef.current) {
       console.log('✅ 所有音频播放完成')
       // 可以在这里添加完成回调
-      const payload = { type: 'audio_playback_complete', message: '音频播放完成', reason }
-      // 优先使用 sendMessage（统一出口，便于日志与拦截）
-      let sentOk = false
-      try { sentOk = sendMessage ? sendMessage(payload) : false } catch {}
-      if (!sentOk && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify(payload))
-        sentOk = true
-      }
-      if (sentOk) {
-        playbackCompleteSentRef.current = true
-        console.log('📤 已通知服务端：音频播放完成', { reason })
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !!isProactiveChatEnabled) {
+        wsRef.current.send(JSON.stringify({
+          type: 'audio_playback_complete',
+          message: '音频播放完成'
+        }));
+        console.log('📤 已通知服务端：音频播放完成');
       } else {
-        console.log('⚠️ WebSocket未连接，无法通知服务端音频播放完成')
+        console.log('⚠️ WebSocket未连接，无法通知服务端音频播放完成');
       }
     }
   }
