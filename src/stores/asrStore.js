@@ -583,28 +583,64 @@ export const useASRStore = create((set, get) => ({
             pcmData[i] = sample * 0x7FFF
           }
 
+
+	          // 背压发送统一函数
+	          const sendPCMChunk = (base64String, volume) => {
+	            const ws = get().connection.ws
+	            if (!ws || ws.readyState !== WebSocket.OPEN) return false
+
+	            // 背压水位
+	            const buffered = ws.bufferedAmount || 0
+	            const softHighWaterMark = 512 * 1024 // 512KB
+	            const hardHighWaterMark = 2 * 1024 * 1024 // 2MB
+
+	            // 若超过硬水位，暂缓发送
+	            if (buffered >= hardHighWaterMark) {
+	              console.warn('🎤 ASR背压：缓冲过大，暂停发送本块')
+	              try { get().notifyASRNetworkIssue?.('网络拥塞：暂缓发送语音数据') } catch {}
+	              return false
+	            }
+
+	            // 轻度限速：超过软水位则微延迟发送
+	            const payload = JSON.stringify({
+	              type: 'audio_chunk',
+	              audio_data: base64String,
+	              timestamp: Date.now(),
+	              volume
+	            })
+
+	            if (buffered >= softHighWaterMark) {
+	              const delay = Math.min(15, Math.max(5, Math.floor(buffered / 65536)))
+	              setTimeout(() => {
+	                try { ws.send(payload) } catch (e) { console.error('❌ 发送延迟块失败', e) }
+	              }, delay)
+	              return true
+	            } else {
+	              ws.send(payload)
+	              return true
+	            }
+	          }
+
           // 转换为base64并发送
           const base64String = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)))
 
           // 检查WebSocket连接状态并发送
           if (connection.ws && connection.ws.readyState === WebSocket.OPEN) {
             try {
-              connection.ws.send(JSON.stringify({
-                type: 'audio_chunk',
-                audio_data: base64String,
-                timestamp: Date.now(),
-                volume: rms
-              }))
-              // 详细的调试信息
-              const stats = get().audio.stats
-              console.log('🎤 发送PCM音频数据块:', {
-                size: base64String.length + ' chars',
-                volume: rms.toFixed(4),
-                status: isSilent ? '静音' : '有声',
-                totalChunks: stats.totalChunks,
-                silentRate: ((stats.silentChunks / stats.totalChunks) * 100).toFixed(1) + '%',
-                avgVolume: stats.averageVolume.toFixed(4)
-              })
+              const sent = sendPCMChunk(base64String, rms)
+              if (sent) {
+                const stats = get().audio.stats
+                console.log('🎤 发送PCM音频数据块:', {
+                  size: base64String.length + ' chars',
+                  volume: rms.toFixed(4),
+                  status: isSilent ? '静音' : '有声',
+                  totalChunks: stats.totalChunks,
+                  silentRate: ((stats.silentChunks / stats.totalChunks) * 100).toFixed(1) + '%',
+                  avgVolume: stats.averageVolume.toFixed(4)
+                })
+              } else {
+                console.log('🎤 本块被背压策略暂缓发送')
+              }
             } catch (error) {
               console.error('❌ 发送音频数据失败:', error)
               get().onASRError(`音频传输失败: ${error.message}`)

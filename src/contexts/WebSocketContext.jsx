@@ -239,8 +239,10 @@ export const WebSocketProvider = ({ children }) => {
 
         if (data.audio_data && typeof data.order === 'number') {
           playTTSAudioChunkWithOrder(data.audio_data, data.format || 'mp3', data.order)
+          // 每次入缓冲后尝试按策略flush
+          flushOrderedAudioWithPolicy()
         } else if (data.audio_data) {
-          // 兼容没有顺序号的情况
+          // 兼容没有顺序号的情况 - 直接入队播放
           playTTSAudioChunk(data.audio_data, data.format || 'mp3')
         } else {
           console.error('❌ 收到的tts_audio_chunk消息没有audio_data字段')
@@ -347,6 +349,56 @@ export const WebSocketProvider = ({ children }) => {
           chatStore.addBotMessage('抱歉，生成回复时出现了错误...')
         }
         break
+
+
+	  // TTS重排策略参数与状态
+	  const missingSetRef = useRef(new Set())
+	  const lastFlushAtRef = useRef(Date.now())
+	  const reorderWindowMsRef = useRef(600) // 重排等待窗口
+	  const maxBufferSizeRef = useRef(200)   // 缓冲上限
+	  const maxGapRef = useRef(1)            // 允许跳过的连续缺口上限
+
+	  // 按策略flush有序缓冲到播放队列
+	  const flushOrderedAudioWithPolicy = () => {
+	    const orderedAudioBuffer = orderedAudioBufferRef.current
+	    const audioQueue = audioQueueRef.current
+	    let expectedOrder = expectedOrderRef.current
+
+	    let progressed = false
+	    while (orderedAudioBuffer.has(expectedOrder)) {
+	      const audioChunk = orderedAudioBuffer.get(expectedOrder)
+	      orderedAudioBuffer.delete(expectedOrder)
+	      audioQueue.push(audioChunk)
+	      expectedOrder += 1
+	      progressed = true
+	    }
+
+	    if (progressed) {
+	      expectedOrderRef.current = expectedOrder
+	      lastFlushAtRef.current = Date.now()
+	      // 如未播放则启动
+	      if (!isPlayingQueueRef.current) {
+	        playAudioQueue()
+	      }
+	      return
+	    }
+
+	    // 没有进展：考虑是否跳过一个缺口
+	    const now = Date.now()
+	    const waited = now - lastFlushAtRef.current
+	    if (waited >= reorderWindowMsRef.current) {
+	      // 若缓冲过大也应前进
+	      const overBuffered = orderedAudioBuffer.size > maxBufferSizeRef.current
+	      if (maxGapRef.current > 0 || overBuffered) {
+	        missingSetRef.current.add(expectedOrder)
+	        console.warn(`🎵 缺失片段 #${expectedOrder}，等待超时${waited}ms${overBuffered ? ' / 缓冲过大' : ''}，执行跳过`)
+	        expectedOrderRef.current = expectedOrder + 1
+	        lastFlushAtRef.current = now
+	        // 跳过后再次尝试flush（若新的expectedOrder存在则推进播放）
+	        flushOrderedAudioWithPolicy()
+	      }
+	    }
+	  }
 
       default:
         console.log('🔍 未处理的消息类型:', data.type)
