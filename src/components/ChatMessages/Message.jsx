@@ -8,7 +8,7 @@ import { Button } from '../ui/button'
 
 /**
  * 单条消息组件
- * 
+ *
  * @param {Object} props - 组件属性
  * @param {Object} props.message - 消息对象
  * @param {string} props.className - 额外的CSS类名
@@ -176,7 +176,7 @@ const Message = ({
     >
       <div
         className={cn(
-          'message-wrapper flex items-start space-x-3 p-4',
+          'message-wrapper flex items-start space-x-3 max-w-[90%] p-4',
           message.type === 'user' && 'flex-row-reverse space-x-reverse'
         )}
       >
@@ -208,7 +208,7 @@ const Message = ({
             <span className="text-sm font-medium text-foreground">
               {message.user.name}
             </span>
-            
+
             {showTimestamp && (
               <span className="text-xs text-muted-foreground">
                 {formatTimestamp(message.timestamp)}
@@ -227,7 +227,7 @@ const Message = ({
           <div
             className={cn(
               'rounded-lg p-3 shadow-sm',
-              message.type === 'user' 
+              message.type === 'user'
                 ? 'bg-primary text-primary-foreground ml-auto'
                 : 'bg-muted',
               message.type === 'system' && 'bg-yellow-50 border border-yellow-200'
