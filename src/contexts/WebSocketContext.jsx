@@ -49,7 +49,7 @@ export const WebSocketProvider = ({ children }) => {
     console.log('🔌 开始连接 WebSocket...')
     setConnectionStatus('connecting')
 
-    const ws = new WebSocket('ws://localhost:8000/ws')
+    const ws = new WebSocket(`ws://localhost:8000/ws?t=${Date.now()}`)
 
     ws.onopen = () => {
       console.log('✅ WebSocket连接已建立')

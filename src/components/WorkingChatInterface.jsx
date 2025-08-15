@@ -163,6 +163,7 @@ const WorkingChatInterface = ({
   // 发送消息
   const handleSendMessage = async () => {
     const trimmedMessage = message.trim()
+    console.log('1111111111111111111', trimmedMessage)
 
     // 验证消息内容
     if (!trimmedMessage && !selectedFile) {
@@ -352,6 +353,7 @@ const WorkingChatInterface = ({
         // 长按空格键模式的最终结果，不自动发送，让用户确认
         if (mode === 'spacekey_final' || mode === 'continuous_final') {
           console.log('🎤 语音识别完成，等待用户确认发送')
+          handleSendMessage();
           if (onNotification) {
             onNotification('语音识别完成，请确认后发送', 'info')
           }
