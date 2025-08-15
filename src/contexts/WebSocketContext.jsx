@@ -187,6 +187,19 @@ export const WebSocketProvider = ({ children }) => {
       case 'generation_chunk':
         if (data.content) {
           appendToBotMessage(data.content)
+
+          // 表情同步 - 从文本内容中匹配表情
+          try {
+            const matchedExpression = matchExpression(data.content)
+            if (matchedExpression) {
+              // 异步播放表情，不阻塞文本显示
+              playLive2DExpression(matchedExpression).catch(error => {
+                console.warn('🎭 表情播放失败:', error)
+              })
+            }
+          } catch (error) {
+            console.error('❌ 表情匹配异常:', error)
+          }
         }
         break
 
@@ -341,6 +354,106 @@ export const WebSocketProvider = ({ children }) => {
   const audioQueueRef = useRef([])
   const isPlayingQueueRef = useRef(false)
   const isTTSGenerationCompleteRef = useRef(false)
+
+  // 表情同步相关的状态变量
+  const lastExpressionTimeRef = useRef(0)
+  const currentExpressionRef = useRef(null)
+  const EXPRESSION_DEBOUNCE_TIME = 1000 // 1秒防抖
+
+  // 表情关键词映射表 - 按优先级排序，强烈情感优先
+  const EXPRESSION_KEYWORDS = {
+    // 强烈情感表情 - 高优先级
+    'shengqi': ['生气', '愤怒', '讨厌', '烦死了', '气死了', '可恶', '混蛋'],
+    'weiqu': ['委屈', '难过', '伤心', '呜呜', '好难过', '心疼'],
+    'yanlei': ['哭', '眼泪', '流泪', '哭泣', '泪水', '呜呜呜'],
+    'hahadaxiao': ['哈哈', '大笑', '笑死', '太好笑', '哈哈哈', '笑', '开心', '高兴', '快乐'],
+    'jingya': ['惊讶', '什么', '怎么会', '不会吧', '天哪', '我的天', '震惊'],
+    'jingxi': ['惊喜', '太好了', '棒', '厉害', 'amazing', '太棒了', 'wonderful'],
+
+    // 中等情感表情 - 中优先级
+    'haixiu': ['害羞', '不好意思', '羞涩', '脸红红', '好害羞'],
+    'lianhong': ['脸红', '羞', '红脸', '害羞'],
+    'aojiao': ['傲娇', '得意', '骄傲', '哼', '才不是', '略略略'],
+    'tuosai': ['思考', '想想', '让我想想', '嗯嗯', '考虑', '琢磨'],
+    'mimiyan': ['满足', '舒服', '嗯', '不错', '挺好', '还行'],
+
+    // 温和表情 - 低优先级
+    'wenroudexiao': ['微笑', '温柔', '好的', '嗯好', '可以', '没问题', '谢谢']
+  }
+
+  // 表情匹配函数
+  const matchExpression = (text) => {
+    if (!text || typeof text !== 'string') return null
+
+    // 按优先级顺序检查关键词
+    for (const [expression, keywords] of Object.entries(EXPRESSION_KEYWORDS)) {
+      for (const keyword of keywords) {
+        if (text.includes(keyword)) {
+          console.log(`🎭 匹配到表情: ${expression} (关键词: ${keyword})`)
+          return expression
+        }
+      }
+    }
+
+    return null
+  }
+
+  // 播放Live2D表情
+  const playLive2DExpression = async (expressionName) => {
+    try {
+      const model = window.live2dModel
+      if (!model) {
+        console.log('🎭 Live2D模型未加载，跳过表情播放')
+        return false
+      }
+
+      // 防抖检查
+      const now = Date.now()
+      if (now - lastExpressionTimeRef.current < EXPRESSION_DEBOUNCE_TIME) {
+        console.log('🎭 表情切换过于频繁，跳过')
+        return false
+      }
+
+      // 如果是相同表情，跳过
+      if (currentExpressionRef.current === expressionName) {
+        console.log('🎭 相同表情，跳过')
+        return false
+      }
+
+      console.log(`🎭 开始播放Live2D表情: ${expressionName}`)
+
+      // 使用与SettingsDrawer相同的表情播放逻辑
+      let success = false
+
+      // 方法1: 使用模型的expression方法
+      if (typeof model.expression === 'function') {
+        const result = model.expression(expressionName)
+        success = typeof result?.then === 'function' ? await result : result !== false
+      }
+
+      // 方法2: 使用表情管理器
+      if (!success && model.internalModel?.motionManager?.expressionManager) {
+        const em = model.internalModel.motionManager.expressionManager
+        if (typeof em.setExpression === 'function') {
+          const result = em.setExpression(expressionName)
+          success = typeof result?.then === 'function' ? await result : result !== false
+        }
+      }
+
+      if (success) {
+        lastExpressionTimeRef.current = now
+        currentExpressionRef.current = expressionName
+        console.log(`✅ Live2D表情播放成功: ${expressionName}`)
+        return true
+      } else {
+        console.warn(`⚠️ Live2D表情播放失败: ${expressionName}`)
+        return false
+      }
+    } catch (error) {
+      console.error('❌ Live2D表情播放异常:', error)
+      return false
+    }
+  }
 
   // 占位函数 - 这些函数需要根据实际的聊天组件来实现
   const stopProactiveChatTimer = () => {
@@ -781,6 +894,10 @@ export const WebSocketProvider = ({ children }) => {
       isPlayingQueueRef.current = false
       expectedOrderRef.current = 1
       isTTSGenerationCompleteRef.current = false
+
+      // 重置表情状态
+      lastExpressionTimeRef.current = 0
+      currentExpressionRef.current = null
 
       console.log('✅ 全局TTS停止完成')
     }
