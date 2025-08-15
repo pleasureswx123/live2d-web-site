@@ -506,9 +506,23 @@ export const WebSocketProvider = ({ children }) => {
       currentAudioRef.current = audio
       currentAudioElementsRef.current.push(audio)
 
+      // 启动Live2D嘴部同步
+      if (window.__startLipSyncForAudio) {
+        try {
+          window.__startLipSyncForAudio(audio)
+        } catch (error) {
+          console.warn('⚠️ 嘴部同步启动失败:', error)
+        }
+      }
+
       // 设置事件监听器
       audio.onended = () => {
         console.log('音频播放完成')
+
+        // 停止Live2D嘴部同步
+        if (window.__stopLipSync) {
+          window.__stopLipSync()
+        }
 
         // 从跟踪列表中移除
         const index = currentAudioElementsRef.current.indexOf(audio)
@@ -528,6 +542,11 @@ export const WebSocketProvider = ({ children }) => {
 
       audio.onerror = (e) => {
         console.error('音频播放错误:', e)
+
+        // 停止Live2D嘴部同步
+        if (window.__stopLipSync) {
+          window.__stopLipSync()
+        }
 
         // 从跟踪列表中移除
         const index = currentAudioElementsRef.current.indexOf(audio)
@@ -732,6 +751,11 @@ export const WebSocketProvider = ({ children }) => {
   useEffect(() => {
     const handleStopAllTTS = () => {
       console.log('🛑 收到全局停止TTS事件')
+
+      // 停止Live2D嘴部同步
+      if (window.__stopLipSync) {
+        window.__stopLipSync()
+      }
 
       // 停止当前播放的音频
       if (currentAudioRef.current) {

@@ -124,6 +124,13 @@ export default function Live2DViewer({
         // 模型信息
         const info = getModelInfo?.(model)
         setModelInfo(info || null)
+
+        // 设置全局模型引用，供嘴部同步使用
+        window.live2dModel = model
+
+        // 初始化嘴部同步功能
+        initLipSync()
+
         onModelLoad && onModelLoad(model, app, info)
       } catch (err) {
         console.error('❌ Live2D 初始化失败:', err)
@@ -138,6 +145,13 @@ export default function Live2DViewer({
 
     return () => {
       mounted = false
+
+      // 清理嘴部同步
+      if (window.__stopLipSync) {
+        window.__stopLipSync()
+      }
+      window.live2dModel = null
+
       const app = appRef.current
       if (app) {
         try {
@@ -153,6 +167,86 @@ export default function Live2DViewer({
   }, [modelPath])
 
   // —— 不再主动 renderer.resize；容器尺寸变化 → resizeTo 自动生效 —— //
+
+  // 初始化嘴部同步功能
+  const initLipSync = () => {
+    // 简单能量转口型
+    let ctx, analyser, data, rafId, source;
+    const SMOOTH = 0.35;      // 平滑系数：越大越稳定
+    const GAIN   = 1.8;       // 口型增益：越大张口越大
+    let last = 0;
+
+    function ensureCtx() {
+      if (!ctx) {
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = ctx.createAnalyser();
+        analyser.fftSize = 1024;
+        data = new Uint8Array(analyser.frequencyBinCount);
+      }
+    }
+
+    function level() {
+      analyser.getByteTimeDomainData(data);
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) {
+        const v = (data[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / data.length);     // 0~1
+      return Math.min(1, rms * GAIN);
+    }
+
+    function tick() {
+      const m = window.live2dModel;
+      if (!m || !analyser) return;
+      const target = level();
+      const y = last + (target - last) * SMOOTH;
+      last = y;
+
+      // Cubism4 参数写入
+      const core = m.internalModel && m.internalModel.coreModel;
+      if (core) {
+        core.setParameterValueById('ParamMouthOpenY', y);
+        // 可选：根据能量稍微变一下嘴型
+        core.setParameterValueById('ParamMouthForm', y * 0.6);
+      }
+      if (rafId) rafId = requestAnimationFrame(tick);
+    }
+
+    function stop() {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = null;
+      last = 0;
+      try { source && source.disconnect(); } catch {}
+      source = null;
+      // 收口
+      const m = window.live2dModel;
+      if (m?.internalModel?.coreModel) {
+        m.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', 0);
+        m.internalModel.coreModel.setParameterValueById('ParamMouthForm', 0);
+      }
+    }
+
+    // 暴露两个全局函数，供音频播放时调用
+    window.__startLipSyncForAudio = function (audioEl) {
+      try {
+        console.log('🎤 开始悠悠口型同步:', audioEl);
+        ensureCtx();
+        stop();
+        source = ctx.createMediaElementSource(audioEl);
+        source.connect(analyser);
+        analyser.connect(ctx.destination); // 不想二次放音可不接 destination
+        rafId = requestAnimationFrame(tick);
+      } catch (e) {
+        console.warn('🎤 悠悠口型同步启动失败:', e);
+      }
+    };
+
+    window.__stopLipSync = function() {
+      console.log('🎤 停止悠悠口型同步');
+      stop();
+    };
+  }
 
   // 点击 tap
   const handleCanvasClick = (event) => {
