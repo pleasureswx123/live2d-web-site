@@ -251,9 +251,12 @@ export const WebSocketProvider = ({ children }) => {
         break
 
       case 'tts_complete':
-        // TTS生成完成（播放可能仍在继续，待 onTTSComplete 统一收尾）
-        console.log('🎵 TTS生成完成')
-        onTTSComplete()
+        // TTS生成完成，给短暂等待时间收集迟到片段，然后收尾
+        console.log('🎵 TTS生成完成，等待迟到片段...')
+        setTimeout(() => {
+          console.log('🎵 短等待结束，执行TTS收尾')
+          onTTSComplete()
+        }, veryShortGraceMsRef.current)
         break
 
       case 'voice_change_success':
@@ -325,18 +328,50 @@ export const WebSocketProvider = ({ children }) => {
         console.log('🎤 ASR识别结果:', data.text, '(final:', data.is_final, ')')
         onASRResult(data.text, data.is_final, data.confidence)
         break
+      case 'asr_started':
+        // ASR识别开始 - 标记用户开始语音输入，暂停TTS
+        console.log('🎤 ASR识别已开始，暂停TTS播放')
+        isUserSpeakingRef.current = true
+        // 暂停当前TTS播放
+        if (currentAudioRef.current && !currentAudioRef.current.paused) {
+          currentAudioRef.current.pause()
+          console.log('🎵 已暂停当前TTS播放')
+        }
+        onASRStarted()
+        break
+
+      case 'asr_result':
+        // ASR识别结果
+        console.log('🎤 ASR识别结果:', data.text, '(final:', data.is_final, ')')
+        onASRResult(data.text, data.is_final, data.confidence)
+        break
 
       case 'asr_stopped':
-        // ASR识别停止
-        console.log('🎤 ASR识别已停止')
+        // ASR识别停止 - 用户结束语音输入，可以恢复TTS
+        console.log('🎤 ASR识别已停止，恢复TTS播放能力')
+        isUserSpeakingRef.current = false
+        // 恢复TTS播放推进（如有待播放内容）
+        setTimeout(() => {
+          if (!isUserSpeakingRef.current && audioQueueRef.current.length > 0 && !isPlayingQueueRef.current) {
+            console.log('🎵 恢复TTS播放队列')
+            playAudioQueue()
+          }
+        }, 100)
         onASRStopped()
         break
 
       case 'asr_error':
-        // ASR识别错误
+        // ASR识别错误 - 结束语音输入状态
         console.error('❌ ASR识别错误:', data.error)
+        isUserSpeakingRef.current = false
         onASRError(data.error)
         break
+      case 'audio_playback_complete':
+        // 服务端确认接收到了音频播放完成的通知（或服务端主动告知）
+        console.log('🎵 服务端已确认音频播放完成')
+        break
+
+
 
       case 'error':
         // 如果有正在进行的流式消息，更新其内容为错误信息
@@ -357,9 +392,17 @@ export const WebSocketProvider = ({ children }) => {
 	  const reorderWindowMsRef = useRef(600) // 重排等待窗口
 	  const maxBufferSizeRef = useRef(200)   // 缓冲上限
 	  const maxGapRef = useRef(1)            // 允许跳过的连续缺口上限
+  const veryShortGraceMsRef = useRef(200) // tts_complete后短等待
+  const isUserSpeakingRef = useRef(false) // 用户是否正在语音输入（与TTS互斥）
 
 	  // 按策略flush有序缓冲到播放队列
 	  const flushOrderedAudioWithPolicy = () => {
+	    // 用户正在语音输入时，暂停TTS播放推进
+	    if (isUserSpeakingRef.current) {
+	      console.log('🎤 用户正在语音输入，暂停TTS播放推进')
+	      return
+	    }
+
 	    const orderedAudioBuffer = orderedAudioBufferRef.current
 	    const audioQueue = audioQueueRef.current
 	    let expectedOrder = expectedOrderRef.current
@@ -376,8 +419,8 @@ export const WebSocketProvider = ({ children }) => {
 	    if (progressed) {
 	      expectedOrderRef.current = expectedOrder
 	      lastFlushAtRef.current = Date.now()
-	      // 如未播放则启动
-	      if (!isPlayingQueueRef.current) {
+	      // 如未播放且用户未在说话则启动
+	      if (!isPlayingQueueRef.current && !isUserSpeakingRef.current) {
 	        playAudioQueue()
 	      }
 	      return
@@ -392,6 +435,7 @@ export const WebSocketProvider = ({ children }) => {
 	      if (maxGapRef.current > 0 || overBuffered) {
 	        missingSetRef.current.add(expectedOrder)
 	        console.warn(`🎵 缺失片段 #${expectedOrder}，等待超时${waited}ms${overBuffered ? ' / 缓冲过大' : ''}，执行跳过`)
+	        updateTTSMeta({ skipped: (updateTTSMeta.skipped || 0) + 1, lastSkipped: expectedOrder })
 	        expectedOrderRef.current = expectedOrder + 1
 	        lastFlushAtRef.current = now
 	        // 跳过后再次尝试flush（若新的expectedOrder存在则推进播放）

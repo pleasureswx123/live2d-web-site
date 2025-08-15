@@ -583,6 +583,11 @@ export const useASRStore = create((set, get) => ({
             pcmData[i] = sample * 0x7FFF
           }
 
+	          // ASR音频队列与静音处理
+	          const audioChunkQueue = []
+	          const maxQueueLen = 100
+	          const silenceMinMs = 300 // 静音合并最小时长
+	          let lastSilentTime = 0
 
 	          // 背压发送统一函数
 	          const sendPCMChunk = (base64String, volume) => {
@@ -627,19 +632,61 @@ export const useASRStore = create((set, get) => ({
           // 检查WebSocket连接状态并发送
           if (connection.ws && connection.ws.readyState === WebSocket.OPEN) {
             try {
-              const sent = sendPCMChunk(base64String, rms)
-              if (sent) {
-                const stats = get().audio.stats
-                console.log('🎤 发送PCM音频数据块:', {
-                  size: base64String.length + ' chars',
-                  volume: rms.toFixed(4),
-                  status: isSilent ? '静音' : '有声',
-                  totalChunks: stats.totalChunks,
-                  silentRate: ((stats.silentChunks / stats.totalChunks) * 100).toFixed(1) + '%',
-                  avgVolume: stats.averageVolume.toFixed(4)
-                })
+              // 静音处理：连续静音超过阈值时合并/跳过
+              if (isSilent) {
+                const now = Date.now()
+                if (lastSilentTime === 0) lastSilentTime = now
+                const silentDuration = now - lastSilentTime
+
+                // 静音时间过短，跳过发送（减少网络负载）
+                if (silentDuration < silenceMinMs) {
+                  console.log('🎤 静音片段过短，跳过发送')
+                  return
+                }
               } else {
-                console.log('🎤 本块被背压策略暂缓发送')
+                lastSilentTime = 0 // 重置静音计时
+              }
+
+              // 队列管理：超限时优先丢弃静音块
+              if (audioChunkQueue.length >= maxQueueLen) {
+                // 找到最老的静音块并移除
+                for (let i = 0; i < audioChunkQueue.length; i++) {
+                  if (audioChunkQueue[i].isSilent) {
+                    audioChunkQueue.splice(i, 1)
+                    console.log('🎤 队列超限，丢弃静音块')
+                    break
+                  }
+                }
+                // 若无静音块可丢，移除最老的
+                if (audioChunkQueue.length >= maxQueueLen) {
+                  audioChunkQueue.shift()
+                  console.log('🎤 队列超限，丢弃最老块')
+                }
+              }
+
+              // 入队
+              audioChunkQueue.push({ base64String, volume: rms, isSilent, timestamp: Date.now() })
+
+              // 尝试发送队列中的块
+              while (audioChunkQueue.length > 0) {
+                const chunk = audioChunkQueue[0]
+                const sent = sendPCMChunk(chunk.base64String, chunk.volume)
+                if (sent) {
+                  audioChunkQueue.shift()
+                  const stats = get().audio.stats
+                  console.log('🎤 发送PCM音频数据块:', {
+                    size: chunk.base64String.length + ' chars',
+                    volume: chunk.volume.toFixed(4),
+                    status: chunk.isSilent ? '静音' : '有声',
+                    totalChunks: stats.totalChunks,
+                    silentRate: ((stats.silentChunks / stats.totalChunks) * 100).toFixed(1) + '%',
+                    avgVolume: stats.averageVolume.toFixed(4),
+                    queueLen: audioChunkQueue.length
+                  })
+                } else {
+                  console.log('🎤 本块被背压策略暂缓，队列长度:', audioChunkQueue.length)
+                  break // 暂停处理队列
+                }
               }
             } catch (error) {
               console.error('❌ 发送音频数据失败:', error)
