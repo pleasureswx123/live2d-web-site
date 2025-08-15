@@ -4,19 +4,22 @@ import { create } from 'zustand'
 export const useProactiveChatStore = create((set, get) => ({
   // 沉默触发时间（秒）
   silenceTimeout: 30,
-  
+
+  // API基础URL
+  apiBaseUrl: 'http://localhost:8000',
+
   // 主动对话是否启用
   isProactiveChatEnabled: true,
-  
+
   // 主动对话统计
   proactiveChatCount: 0,
   proactiveChatHistory: [],
-  
+
   // 话题和状态
   recentTopics: new Set(),
   pendingProactiveMessage: false,
   userResponseToProactive: false,
-  
+
   // UI控制
   showDebugInfo: false,
   isApplying: false, // 是否正在应用设置
@@ -28,8 +31,8 @@ export const useProactiveChatStore = create((set, get) => ({
 
   // 应用沉默时间设置到后端
   applySilenceTimeout: async (currentUserId) => {
-    const { silenceTimeout } = get()
-    
+    const { silenceTimeout, apiBaseUrl } = get()
+
     if (!currentUserId) {
       console.log('❌ 无用户ID，无法设置沉默时间')
       return false
@@ -39,7 +42,7 @@ export const useProactiveChatStore = create((set, get) => ({
 
     try {
       // 模拟API调用 - 在实际项目中替换为真实的API端点
-      const response = await fetch(`/proactive/silence-timeout/${currentUserId}`, {
+      const response = await fetch(`${apiBaseUrl}/proactive/silence-timeout/${currentUserId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -118,11 +121,11 @@ export const useProactiveChatStore = create((set, get) => ({
   // 设置用户回应状态
   setUserResponseToProactive: (responded) => {
     set({ userResponseToProactive: responded })
-    
+
     // 如果用户已回应，更新历史记录
     if (responded) {
       set((state) => ({
-        proactiveChatHistory: state.proactiveChatHistory.map(record => 
+        proactiveChatHistory: state.proactiveChatHistory.map(record =>
           record.responded ? record : { ...record, responded: true }
         )
       }))
@@ -154,7 +157,7 @@ export const useProactiveChatStore = create((set, get) => ({
   // 获取状态文本
   getStatusText: () => {
     const { isProactiveChatEnabled, silenceTimeout } = get()
-    return isProactiveChatEnabled 
+    return isProactiveChatEnabled
       ? `智能对话: 已启用 (${silenceTimeout}秒触发)`
       : '智能对话: 已关闭'
   },

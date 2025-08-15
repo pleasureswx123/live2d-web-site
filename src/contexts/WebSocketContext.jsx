@@ -342,10 +342,17 @@ export const WebSocketProvider = ({ children }) => {
         orderedAudioBufferRef.current.clear()
         isPlayingQueueRef.current = false
         expectedOrderRef.current = 1
+  // 防重复上报控制
+  const playbackCompleteSentRef = useRef(false)
+
         // 标记本次TTS会话完成并上报
         isTTSGenerationCompleteRef.current = true
         try { checkAllAudioPlaybackComplete('asr_interrupt') } catch (e) { console.warn('检查播放完成失败', e) }
         onASRStarted()
+        // 防止重复上报
+        const sentBefore = playbackCompleteSentRef.current
+        // 标记本轮已发送完成（若满足条件）在 checkAllAudioPlaybackComplete 内判断
+
         break
 
       case 'asr_result':
@@ -615,7 +622,9 @@ export const WebSocketProvider = ({ children }) => {
       queueLength: audioQueue.length,
       bufferSize: orderedAudioBuffer.size,
       ttsComplete: isTTSGenerationComplete,
-      isPlaying: isPlayingQueueRef.current
+      isPlaying: isPlayingQueueRef.current,
+      sentBefore: playbackCompleteSentRef.current,
+      reason
     })
 
     if (audioQueue.length === 0 && orderedAudioBuffer.size === 0 &&
@@ -626,14 +635,13 @@ export const WebSocketProvider = ({ children }) => {
       // 优先使用 sendMessage（统一出口，便于日志与拦截）
       let sentOk = false
       try { sentOk = sendMessage ? sendMessage(payload) : false } catch {}
-      if (!sentOk) {
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify(payload))
-          sentOk = true
-        }
+      if (!sentOk && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify(payload))
+        sentOk = true
       }
       if (sentOk) {
-        console.log('📤 已通知服务端：音频播放完成')
+        playbackCompleteSentRef.current = true
+        console.log('📤 已通知服务端：音频播放完成', { reason })
       } else {
         console.log('⚠️ WebSocket未连接，无法通知服务端音频播放完成')
       }
