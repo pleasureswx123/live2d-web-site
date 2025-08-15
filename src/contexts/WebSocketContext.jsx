@@ -328,6 +328,7 @@ export const WebSocketProvider = ({ children }) => {
         console.log('🎤 ASR识别结果:', data.text, '(final:', data.is_final, ')')
         onASRResult(data.text, data.is_final, data.confidence)
         break
+
       case 'asr_started':
         // ASR识别开始 - 标记用户开始语音输入，抢占并清理TTS（互斥：停止当前TTS并上报完成）
         console.log('🎤 ASR识别已开始，停止并清理TTS队列（互斥）')
@@ -342,8 +343,6 @@ export const WebSocketProvider = ({ children }) => {
         orderedAudioBufferRef.current.clear()
         isPlayingQueueRef.current = false
         expectedOrderRef.current = 1
-  // 防重复上报控制
-  const playbackCompleteSentRef = useRef(false)
 
         // 标记本次TTS会话完成并上报
         isTTSGenerationCompleteRef.current = true
@@ -400,68 +399,71 @@ export const WebSocketProvider = ({ children }) => {
         }
         break
 
-
-	  // TTS重排策略参数与状态
-	  const missingSetRef = useRef(new Set())
-	  const lastFlushAtRef = useRef(Date.now())
-	  const reorderWindowMsRef = useRef(600) // 重排等待窗口
-	  const maxBufferSizeRef = useRef(200)   // 缓冲上限
-	  const maxGapRef = useRef(1)            // 允许跳过的连续缺口上限
-  const veryShortGraceMsRef = useRef(200) // tts_complete后短等待
-  const isUserSpeakingRef = useRef(false) // 用户是否正在语音输入（与TTS互斥）
-
-	  // 按策略flush有序缓冲到播放队列
-	  const flushOrderedAudioWithPolicy = () => {
-	    // 用户正在语音输入时，暂停TTS播放推进
-	    if (isUserSpeakingRef.current) {
-	      console.log('🎤 用户正在语音输入，暂停TTS播放推进')
-	      return
-	    }
-
-	    const orderedAudioBuffer = orderedAudioBufferRef.current
-	    const audioQueue = audioQueueRef.current
-	    let expectedOrder = expectedOrderRef.current
-
-	    let progressed = false
-	    while (orderedAudioBuffer.has(expectedOrder)) {
-	      const audioChunk = orderedAudioBuffer.get(expectedOrder)
-	      orderedAudioBuffer.delete(expectedOrder)
-	      audioQueue.push(audioChunk)
-	      expectedOrder += 1
-	      progressed = true
-	    }
-
-	    if (progressed) {
-	      expectedOrderRef.current = expectedOrder
-	      lastFlushAtRef.current = Date.now()
-	      // 如未播放且用户未在说话则启动
-	      if (!isPlayingQueueRef.current && !isUserSpeakingRef.current) {
-	        playAudioQueue()
-	      }
-	      return
-	    }
-
-	    // 没有进展：考虑是否跳过一个缺口
-	    const now = Date.now()
-	    const waited = now - lastFlushAtRef.current
-	    if (waited >= reorderWindowMsRef.current) {
-	      // 若缓冲过大也应前进
-	      const overBuffered = orderedAudioBuffer.size > maxBufferSizeRef.current
-	      if (maxGapRef.current > 0 || overBuffered) {
-	        missingSetRef.current.add(expectedOrder)
-	        console.warn(`🎵 缺失片段 #${expectedOrder}，等待超时${waited}ms${overBuffered ? ' / 缓冲过大' : ''}，执行跳过`)
-	        updateTTSMeta({ skipped: (updateTTSMeta.skipped || 0) + 1, lastSkipped: expectedOrder })
-	        expectedOrderRef.current = expectedOrder + 1
-	        lastFlushAtRef.current = now
-	        // 跳过后再次尝试flush（若新的expectedOrder存在则推进播放）
-	        flushOrderedAudioWithPolicy()
-	      }
-	    }
-	  }
-
       default:
         console.log('🔍 未处理的消息类型:', data.type)
         break
+    }
+  }
+
+
+  // TTS重排策略参数与状态
+  const missingSetRef = useRef(new Set())
+  const lastFlushAtRef = useRef(Date.now())
+  const reorderWindowMsRef = useRef(600) // 重排等待窗口
+  const maxBufferSizeRef = useRef(200)   // 缓冲上限
+  const maxGapRef = useRef(1)            // 允许跳过的连续缺口上限
+  const veryShortGraceMsRef = useRef(200) // tts_complete后短等待
+  const isUserSpeakingRef = useRef(false) // 用户是否正在语音输入（与TTS互斥）
+
+  // 防重复上报控制
+  const playbackCompleteSentRef = useRef(false)
+
+  // 按策略flush有序缓冲到播放队列
+  const flushOrderedAudioWithPolicy = () => {
+    // 用户正在语音输入时，暂停TTS播放推进
+    if (isUserSpeakingRef.current) {
+      console.log('🎤 用户正在语音输入，暂停TTS播放推进')
+      return
+    }
+
+    const orderedAudioBuffer = orderedAudioBufferRef.current
+    const audioQueue = audioQueueRef.current
+    let expectedOrder = expectedOrderRef.current
+
+    let progressed = false
+    while (orderedAudioBuffer.has(expectedOrder)) {
+      const audioChunk = orderedAudioBuffer.get(expectedOrder)
+      orderedAudioBuffer.delete(expectedOrder)
+      audioQueue.push(audioChunk)
+      expectedOrder += 1
+      progressed = true
+    }
+
+    if (progressed) {
+      expectedOrderRef.current = expectedOrder
+      lastFlushAtRef.current = Date.now()
+      // 如未播放且用户未在说话则启动
+      if (!isPlayingQueueRef.current && !isUserSpeakingRef.current) {
+        playAudioQueue()
+      }
+      return
+    }
+
+    // 没有进展：考虑是否跳过一个缺口
+    const now = Date.now()
+    const waited = now - lastFlushAtRef.current
+    if (waited >= reorderWindowMsRef.current) {
+      // 若缓冲过大也应前进
+      const overBuffered = orderedAudioBuffer.size > maxBufferSizeRef.current
+      if (maxGapRef.current > 0 || overBuffered) {
+        missingSetRef.current.add(expectedOrder)
+        console.warn(`🎵 缺失片段 #${expectedOrder}，等待超时${waited}ms${overBuffered ? ' / 缓冲过大' : ''}，执行跳过`)
+        updateTTSMeta({ skipped: (updateTTSMeta.skipped || 0) + 1, lastSkipped: expectedOrder })
+        expectedOrderRef.current = expectedOrder + 1
+        lastFlushAtRef.current = now
+        // 跳过后再次尝试flush（若新的expectedOrder存在则推进播放）
+        flushOrderedAudioWithPolicy()
+      }
     }
   }
 
