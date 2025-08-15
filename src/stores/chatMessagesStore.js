@@ -52,12 +52,12 @@ export const useChatMessagesStore = create((set, get) => ({
 
     set((state) => {
       const newMessages = [...state.messages, newMessage]
-      
+
       // 限制消息数量
       if (newMessages.length > state.config.maxMessages) {
         newMessages.splice(0, newMessages.length - state.config.maxMessages)
       }
-      
+
       return { messages: newMessages }
     })
 
@@ -78,7 +78,7 @@ export const useChatMessagesStore = create((set, get) => ({
   // 添加用户消息
   addUserMessage: (text, file = null) => {
     const { currentUser, formatMessageText } = get()
-    
+
     const attachments = []
     if (file) {
       attachments.push({
@@ -109,7 +109,7 @@ export const useChatMessagesStore = create((set, get) => ({
   // 添加机器人消息
   addBotMessage: (text) => {
     const { config, formatMessageText } = get()
-    
+
     const message = {
       type: 'bot',
       content: formatMessageText(text),
@@ -193,17 +193,17 @@ export const useChatMessagesStore = create((set, get) => ({
   // 更新欢迎消息
   updateWelcomeMessage: () => {
     const { currentUser, config, clearMessages, addBotMessage } = get()
-    
+
     // 清空现有消息
     clearMessages()
-    
+
     // 生成欢迎消息
     let welcomeMessage = config.defaultWelcomeMessage
-    
+
     if (currentUser.name) {
       welcomeMessage = config.welcomeMessageTemplate.replace('{userName}', currentUser.name)
     }
-    
+
     // 添加欢迎消息
     addBotMessage(welcomeMessage)
   },
@@ -224,10 +224,10 @@ export const useChatMessagesStore = create((set, get) => ({
   // 切换用户
   switchToUser: (user) => {
     const { clearMessages, setCurrentUser } = get()
-    
+
     // 清空聊天记录
     clearMessages()
-    
+
     // 设置新用户
     setCurrentUser(user)
   },
@@ -235,10 +235,10 @@ export const useChatMessagesStore = create((set, get) => ({
   // 用户登出
   logoutUser: () => {
     const { clearMessages } = get()
-    
+
     // 清空聊天记录
     clearMessages()
-    
+
     // 重置用户信息
     set({
       currentUser: {
@@ -252,7 +252,7 @@ export const useChatMessagesStore = create((set, get) => ({
   // 格式化消息文本
   formatMessageText: (text) => {
     if (!text) return ''
-    
+
     // 转义HTML
     let formattedText = text
       .replace(/&/g, '&amp;')
@@ -276,10 +276,10 @@ export const useChatMessagesStore = create((set, get) => ({
   // 显示搜索指示器
   showSearchIndicator: (query) => {
     const { config } = get()
-    
+
     // 移除现有的搜索指示器
     get().hideSearchIndicator()
-    
+
     const searchMessage = {
       id: 'search-indicator',
       type: 'system',
@@ -421,6 +421,39 @@ export const useChatMessagesStore = create((set, get) => ({
     }
   },
 
+	  // 更新当前流式机器人消息的语音播放元信息（TTS容错/可视化）
+	  updateCurrentStreamingMessageMeta: (updates) => {
+	    const { currentStreamingMessageId } = get()
+	    if (!currentStreamingMessageId) return
+	    set((state) => ({
+	      messages: state.messages.map(msg =>
+	        msg.id === currentStreamingMessageId
+	          ? { ...msg, ttsMeta: { ...(msg.ttsMeta || {}), ...(updates || {}) } }
+	          : msg
+	      )
+	    }))
+	  },
+
+	  // 递增当前流式机器人消息的已接收音频片段计数
+	  incrementCurrentStreamingMessageTTSChunks: () => {
+	    const { currentStreamingMessageId } = get()
+	    if (!currentStreamingMessageId) return
+	    set((state) => ({
+	      messages: state.messages.map(msg =>
+	        msg.id === currentStreamingMessageId
+	          ? {
+	              ...msg,
+	              ttsMeta: {
+	                ...(msg.ttsMeta || {}),
+	                receivedChunks: ((msg.ttsMeta?.receivedChunks) || 0) + 1
+	              }
+	            }
+	          : msg
+	      )
+	    }))
+	  },
+
+
   // 更新UI状态
   updateUIState: (updates) => {
     set((state) => ({
@@ -445,7 +478,7 @@ export const useChatMessagesStore = create((set, get) => ({
   scrollToBottom: () => {
     const { ui } = get()
     const container = ui.containerRef?.current
-    
+
     if (container) {
       container.scrollTo({
         top: container.scrollHeight,
@@ -458,10 +491,10 @@ export const useChatMessagesStore = create((set, get) => ({
   checkScrollPosition: () => {
     const { ui } = get()
     const container = ui.containerRef?.current
-    
+
     if (container) {
       const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50
-      
+
       if (ui.isScrolledToBottom !== isAtBottom) {
         set((state) => ({
           ui: {
@@ -476,7 +509,7 @@ export const useChatMessagesStore = create((set, get) => ({
   // 搜索消息
   searchMessages: (query) => {
     const { messages } = get()
-    
+
     if (!query.trim()) {
       return messages
     }
@@ -490,7 +523,7 @@ export const useChatMessagesStore = create((set, get) => ({
   // 获取消息统计
   getMessageStats: () => {
     const { messages } = get()
-    
+
     return {
       total: messages.length,
       user: messages.filter(m => m.type === 'user').length,
@@ -503,12 +536,12 @@ export const useChatMessagesStore = create((set, get) => ({
   // 导出消息
   exportMessages: (format = 'json') => {
     const { messages } = get()
-    
+
     switch (format) {
       case 'json':
         return JSON.stringify(messages, null, 2)
       case 'txt':
-        return messages.map(msg => 
+        return messages.map(msg =>
           `[${msg.timestamp.toLocaleString()}] ${msg.user.name}: ${msg.content}`
         ).join('\n')
       default:
@@ -529,9 +562,9 @@ export const useChatMessagesStore = create((set, get) => ({
   // 重置所有状态
   reset: () => {
     const { clearMessages } = get()
-    
+
     clearMessages()
-    
+
     set({
       currentUser: {
         name: null,

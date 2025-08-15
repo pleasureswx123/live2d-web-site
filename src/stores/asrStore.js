@@ -143,6 +143,7 @@ export const useASRStore = create((set, get) => ({
             lastError: error.message || 'WebSocket连接错误'
           }
         }))
+        try { get().notifyASRNetworkIssue?.('ASR连接出现错误，正在尝试恢复') } catch {}
       })
     }
   },
@@ -610,6 +611,7 @@ export const useASRStore = create((set, get) => ({
             }
           } else {
             console.warn('⚠️ WebSocket连接不可用，跳过音频数据发送')
+          try { get().notifyASRNetworkIssue?.('音频数据未发送：连接暂不可用') } catch {}
           }
         }
       }
@@ -658,6 +660,7 @@ export const useASRStore = create((set, get) => ({
           throw new Error(`启动ASR失败: ${error.message}`)
         }
       } else {
+        get().notifyASRNetworkIssue?.('ASR启动失败：连接不可用')
         throw new Error('WebSocket连接不可用')
       }
 
@@ -741,6 +744,7 @@ export const useASRStore = create((set, get) => ({
         }
       } else {
         console.warn('⚠️ WebSocket连接不可用，无法发送stop_asr消息')
+        try { get().notifyASRNetworkIssue?.('未能通知服务端停止ASR：连接不可用') } catch {}
       }
 
     } catch (error) {
@@ -1466,6 +1470,19 @@ export const useASRStore = create((set, get) => ({
       isContinuousMode: state.recording.isContinuousMode,
       isConnected: state.connection.isConnected,
       serverConfirmed: state.recording.serverConfirmed,
+
+	  // ASR容错：当网络抖动/断开时进行最小化降级提示（不修改行为，仅派发通知）
+	  notifyASRNetworkIssue: (message = 'ASR网络不稳定，可能影响识别完整性') => {
+	    try {
+	      const event = new CustomEvent('asrNotification', {
+	        detail: { message, type: 'warning' }
+	      })
+	      window.dispatchEvent(event)
+	    } catch (e) {
+	      console.warn('派发ASR网络告警失败', e)
+	    }
+	  },
+
       currentText: state.recognition.currentText,
       bestText: state.recognition.bestText,
       continuousText: state.recognition.continuousText,

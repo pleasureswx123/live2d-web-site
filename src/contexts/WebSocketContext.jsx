@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
 import { useVoice } from './VoiceContext'
 import { useUserAuthStore } from '../stores/userAuthStore'
 import { useChatMessagesStore } from '../stores/chatMessagesStore'
@@ -138,6 +138,17 @@ export const WebSocketProvider = ({ children }) => {
   }
 
   // 处理 WebSocket 消息
+
+  // TTS容错与可视化统计：为当前流式消息标记TTS状态（定义在组件作用域，供 switch 分支调用）
+  const updateTTSMeta = (updates) => {
+    try {
+      const chatStore = useChatMessagesStore.getState()
+      chatStore.updateCurrentStreamingMessageMeta?.(updates)
+    } catch (e) {
+      console.warn('TTS元信息更新失败', e)
+    }
+  }
+
   const handleWebSocketMessage = (data) => {
     console.log('📥 收到WebSocket消息:', data.type, data)
 
@@ -198,6 +209,8 @@ export const WebSocketProvider = ({ children }) => {
         console.log('🎵 收到TTS音频消息（回退模式）:', {
           type: data.type,
           format: data.format,
+
+
           audioDataLength: data.audio_data ? data.audio_data.length : 0,
           text: data.text
         })
@@ -207,7 +220,7 @@ export const WebSocketProvider = ({ children }) => {
         break
 
       case 'tts_audio_chunk':
-        // 处理流式TTS音频片段
+        // 处理流式TTS音频片段 + 容错统计
         console.log('🎵 收到流式TTS音频片段:', {
           type: data.type,
           format: data.format,
@@ -216,13 +229,22 @@ export const WebSocketProvider = ({ children }) => {
           text: data.text ? data.text.substring(0, 30) + '...' : 'null',
           isProactive: data.is_proactive || false
         })
-        if (data.audio_data && data.order) {
+
+        // 记录收到的片段序号和计数
+        if (typeof data.order === 'number') {
+          updateTTSMeta({ lastOrder: data.order })
+          const chatStore = useChatMessagesStore.getState()
+          chatStore.incrementCurrentStreamingMessageTTSChunks?.()
+        }
+
+        if (data.audio_data && typeof data.order === 'number') {
           playTTSAudioChunkWithOrder(data.audio_data, data.format || 'mp3', data.order)
         } else if (data.audio_data) {
           // 兼容没有顺序号的情况
           playTTSAudioChunk(data.audio_data, data.format || 'mp3')
         } else {
           console.error('❌ 收到的tts_audio_chunk消息没有audio_data字段')
+          updateTTSMeta({ lastError: 'missing_audio_data' })
         }
         break
 
@@ -449,6 +471,31 @@ export const WebSocketProvider = ({ children }) => {
     }
 
     playNextAudio()
+
+  // TTS容错：检测播放队列“长时间空闲但未完成”的异常，触发收尾与告警
+  const ttsWatchdogRef = useRef({ timer: null, lastProgressAt: Date.now() })
+
+  const markTTSProgress = useCallback(() => {
+    ttsWatchdogRef.current.lastProgressAt = Date.now()
+  }, [])
+
+  useEffect(() => {
+    if (ttsWatchdogRef.current.timer) clearInterval(ttsWatchdogRef.current.timer)
+    ttsWatchdogRef.current.timer = setInterval(() => {
+      const idleMs = Date.now() - ttsWatchdogRef.current.lastProgressAt
+      // 超过15秒未有播放进度则触发收尾
+      if (idleMs > 15000) {
+        console.warn('🎵 TTS播放疑似卡住，触发收尾并上报')
+        try { onTTSComplete() } catch {}
+        ttsWatchdogRef.current.lastProgressAt = Date.now()
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ type: 'audio_playback_complete', message: 'watchdog_triggered' }))
+        }
+      }
+    }, 5000)
+    return () => { if (ttsWatchdogRef.current.timer) clearInterval(ttsWatchdogRef.current.timer) }
+  }, [onTTSComplete])
+
   }
 
   // 检查所有音频播放是否完成
