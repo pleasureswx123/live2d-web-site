@@ -114,7 +114,7 @@ const AppContent = () => {
       />
 
       {/* 主聊天界面 */}
-      <div className="absolute top-4 right-4 w-[30rem] h-[calc(100vh-2rem)] z-10">
+      <div className="absolute top-4 right-4 w-96 h-[calc(100vh-2rem)] z-10">
         <WorkingChatInterface
           enableFileUpload={true}
           enableASR={true}
