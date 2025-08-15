@@ -32,7 +32,6 @@ export const WebSocketProvider = ({ children }) => {
   const asrStore = useASRStore()
   const { updateProfileActivity } = useProfileStore();
   const { addConversionActivity } = useConversionStore();
-  const { isProactiveChatEnabled } = useProactiveChatStore();
 
   // 当WebSocket连接状态改变时，更新ASR Store
   useEffect(() => {
@@ -468,7 +467,9 @@ export const WebSocketProvider = ({ children }) => {
 
     if (audioQueue.length === 0 && orderedAudioBuffer.size === 0 &&
       isTTSGenerationComplete && !isPlayingQueueRef.current) {
-      console.log('✅ 所有音频播放完成')
+      // 实时获取最新的主动对话状态
+      const { isProactiveChatEnabled } = useProactiveChatStore.getState();
+      console.log('✅ 所有音频播放完成', isProactiveChatEnabled)
       // 可以在这里添加完成回调
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !!isProactiveChatEnabled) {
         wsRef.current.send(JSON.stringify({
@@ -477,7 +478,7 @@ export const WebSocketProvider = ({ children }) => {
         }));
         console.log('📤 已通知服务端：音频播放完成');
       } else {
-        console.log('⚠️ WebSocket未连接，无法通知服务端音频播放完成');
+        console.log('⚠️ WebSocket未连接或关闭了主动对话，无法通知服务端音频播放完成');
       }
     }
   }

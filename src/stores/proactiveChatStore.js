@@ -9,7 +9,7 @@ export const useProactiveChatStore = create((set, get) => ({
   apiBaseUrl: 'http://localhost:8000',
 
   // 主动对话是否启用
-  isProactiveChatEnabled: true,
+  isProactiveChatEnabled: false,
 
   // 主动对话统计
   proactiveChatCount: 0,

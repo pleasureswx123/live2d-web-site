@@ -3,8 +3,10 @@ import { useProactiveChatStore } from '../stores/proactiveChatStore'
 import { useUserAuthStore } from '../stores/userAuthStore'
 import { ChevronDown, ChevronUp, Settings } from 'lucide-react'
 import { useEffect } from 'react'
+import { useWebSocket } from '../contexts/WebSocketContext'
 
 const ProactiveChatControl = () => {
+  const { wsRef } = useWebSocket()
   const {
     silenceTimeout,
     isProactiveChatEnabled,
@@ -30,6 +32,16 @@ const ProactiveChatControl = () => {
     // 初始化加载沉默时间
     loadSilenceTimeout(currentUser?.id)
   }, [currentUser?.id])
+
+  useEffect(() => {
+    console.log(11111, isProactiveChatEnabled, wsRef);
+    if (isProactiveChatEnabled && wsRef && wsRef.readyState === WebSocket.OPEN) {
+      wsRef.send(JSON.stringify({
+        type: 'audio_playback_complete',
+        message: '音频播放完成'
+      }));
+    }
+  }, [isProactiveChatEnabled])
   // 当 store 的 silenceTimeout 更新时同步到临时UI
   useEffect(() => { setTempTimeout(silenceTimeout) }, [silenceTimeout])
 
