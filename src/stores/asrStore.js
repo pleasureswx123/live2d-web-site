@@ -157,9 +157,13 @@ export const useASRStore = create((set, get) => ({
     }
   },
 
-  // 从WebSocketContext获取连接状态
-  updateConnectionFromContext: (wsRef, connectionStatus) => {
-    const ws = wsRef?.current
+  // 从WebSocketContext获取连接状态（兼容传入ref或WebSocket实例）
+  updateConnectionFromContext: (wsOrRef, connectionStatus) => {
+    // 既支持传入 { current: WebSocket } 的 ref，也支持直接传入 WebSocket 实例
+    const ws = wsOrRef && typeof wsOrRef === 'object' && 'readyState' in wsOrRef
+      ? wsOrRef // 直接是 WebSocket 实例
+      : wsOrRef?.current // 可能是 ref
+
     set((state) => ({
       connection: {
         ...state.connection,
@@ -167,7 +171,7 @@ export const useASRStore = create((set, get) => ({
         isConnected: connectionStatus === 'connected' && ws?.readyState === WebSocket.OPEN
       }
     }))
-    console.log('🔌 ASR Store WebSocket状态已更新:', connectionStatus)
+    console.log('🔌 ASR Store WebSocket状态已更新:', connectionStatus, 'ws exists:', !!ws)
   },
 
   // 更新录音状态

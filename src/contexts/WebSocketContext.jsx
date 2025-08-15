@@ -37,7 +37,7 @@ export const WebSocketProvider = ({ children }) => {
     if (asrStore.updateConnectionFromContext) {
       asrStore.updateConnectionFromContext(wsRef, connectionStatus)
     }
-  }, [connectionStatus, wsRef.current])
+  }, [connectionStatus])
 
   // 连接 WebSocket
   const connectWebSocket = () => {
@@ -227,8 +227,8 @@ export const WebSocketProvider = ({ children }) => {
         break
 
       case 'tts_complete':
-        // TTS完成信号
-        console.log('🎵 流式TTS完成')
+        // TTS生成完成（播放可能仍在继续，待 onTTSComplete 统一收尾）
+        console.log('🎵 TTS生成完成')
         onTTSComplete()
         break
 
@@ -468,10 +468,15 @@ export const WebSocketProvider = ({ children }) => {
         isTTSGenerationComplete && !isPlayingQueueRef.current) {
       console.log('✅ 所有音频播放完成')
       // 可以在这里添加完成回调
-      sendMessage({
-        type: 'audio_playback_complete',
-        message: '音频播放完成'
-      })
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'audio_playback_complete',
+          message: '音频播放完成'
+        }));
+        console.log('📤 已通知服务端：音频播放完成');
+      } else {
+        console.log('⚠️ WebSocket未连接，无法通知服务端音频播放完成');
+      }
     }
   }
 

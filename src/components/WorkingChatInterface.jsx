@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useWebSocket } from '../contexts/WebSocketContext'
 import { useChatMessagesStore } from '../stores/chatMessagesStore'
-import { useTypingIndicatorStore } from '../stores/typingIndicatorStore'
+
 import { useFileUploadStore } from '../stores/fileUploadStore'
 import { useASRStore } from '../stores/asrStore'
 import { useSystemControlStore } from '../stores/systemControlStore'
@@ -11,7 +11,7 @@ import { FileUploadButton, FilePreview } from './FileUpload'
 
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
-import { Send, Paperclip, Mic, MicOff } from 'lucide-react'
+import { Send, Paperclip, Mic } from 'lucide-react'
 
 /**
  * 完全可用的主聊天界面组件
@@ -27,11 +27,13 @@ const WorkingChatInterface = ({
   onNotification,
   ...props
 }) => {
-  const { toggleSearch: enableSearch} = useSystemControlStore();
+  const { isSearchEnabled } = useSystemControlStore();
   // 状态管理
   const [message, setMessage] = useState('')
   const [isComposing, setIsComposing] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  // 空格键ASR自动发送的挂起控制
+  const pendingASRAutoSendRef = useRef({ active: false, timeoutId: null, text: '' })
 
   // Refs
   const textareaRef = useRef(null)
@@ -45,7 +47,7 @@ const WorkingChatInterface = ({
     scrollToBottom,
     showSearchIndicator
   } = useChatMessagesStore()
-  const { isVisible: isTypingVisible } = useTypingIndicatorStore()
+
   const {
     files,
     ui: fileUI,
@@ -74,7 +76,7 @@ const WorkingChatInterface = ({
 
   // 检测是否需要搜索
   const shouldTriggerSearch = (text) => {
-    if (!enableSearch || !text) return false
+    if (!isSearchEnabled || !text) return false
 
     const hasSearchKeyword = searchKeywords.some(keyword => text.includes(keyword))
     const isTimeQuery = timeKeywords.some(keyword => text.includes(keyword))
@@ -163,7 +165,6 @@ const WorkingChatInterface = ({
   // 发送消息
   const handleSendMessage = async () => {
     const trimmedMessage = message.trim()
-    console.log('1111111111111111111', trimmedMessage)
 
     // 验证消息内容
     if (!trimmedMessage && !selectedFile) {
@@ -345,18 +346,29 @@ const WorkingChatInterface = ({
       const { text, mode } = event.detail
       console.log('🎤 ASR最终结果:', text, 'mode:', mode)
 
-      if (text && text.trim()) {
+      const trimmed = (text || '').trim()
+      if (trimmed) {
         // 设置输入框内容
-        setMessage(text.trim())
+        setMessage(trimmed)
         setTimeout(autoResizeTextarea, 0)
 
-        // 长按空格键模式的最终结果，不自动发送，让用户确认
-        if (mode === 'spacekey_final' || mode === 'continuous_final') {
-          console.log('🎤 语音识别完成，等待用户确认发送')
-          handleSendMessage();
-          if (onNotification) {
-            onNotification('语音识别完成，请确认后发送', 'info')
+        if (mode === 'spacekey_final') {
+          // 空格键长按场景：为了消息完整性，优先等待服务器 asr_stopped 最终文本；
+          // 若超时未到，兜底使用当前文本自动发送。
+          if (pendingASRAutoSendRef.current.timeoutId) {
+            clearTimeout(pendingASRAutoSendRef.current.timeoutId)
           }
+          pendingASRAutoSendRef.current.active = true
+          pendingASRAutoSendRef.current.text = trimmed
+          pendingASRAutoSendRef.current.timeoutId = setTimeout(() => {
+            if (pendingASRAutoSendRef.current.active) {
+              console.log('⏱️ 等待服务器最终文本超时，使用本地最终结果自动发送')
+              pendingASRAutoSendRef.current.active = false
+              pendingASRAutoSendRef.current.timeoutId = null
+              // 发送当前输入框内容
+              handleSendMessage()
+            }
+          }, 1000)
         }
       }
     }
@@ -372,16 +384,33 @@ const WorkingChatInterface = ({
       console.log('🎤 ASR已停止, mode:', mode, 'finalText:', finalText)
 
       // 使用服务器提供的最终文本，如果没有则使用当前识别文本
-      let textToUse = finalText
+      let textToUse = (finalText || '').trim()
       if (!textToUse && recognition.currentText && recognition.currentText.trim()) {
         textToUse = recognition.currentText.trim()
         console.log('🎤 使用当前识别文本:', textToUse)
       }
 
+      if (pendingASRAutoSendRef.current.active) {
+        // 这是空格键长按流程的停止事件，优先以服务器给的最终文本为准
+        if (pendingASRAutoSendRef.current.timeoutId) {
+          clearTimeout(pendingASRAutoSendRef.current.timeoutId)
+        }
+        pendingASRAutoSendRef.current.active = false
+        pendingASRAutoSendRef.current.timeoutId = null
+
+        if (textToUse) {
+          setMessage(textToUse)
+          setTimeout(autoResizeTextarea, 0)
+          // 自动发送，确保完整性
+          handleSendMessage()
+        }
+        return
+      }
+
+      // 非空格键场景：保持原先行为，仅写回输入框，等待用户手动发送
       if (textToUse) {
         setMessage(textToUse)
         setTimeout(autoResizeTextarea, 0)
-
         if (onNotification) {
           onNotification('语音识别已停止，请确认内容后发送', 'info')
         }
@@ -410,7 +439,7 @@ const WorkingChatInterface = ({
       window.removeEventListener('asrServerStopped', handleASRStopped)
       window.removeEventListener('asrServerStarted', handleASRServerStarted)
     }
-  }, [recording.isSpaceKeyASRActive, onError])
+  }, [recording.isSpaceKeyASRActive, onError, onNotification, handleSendMessage])
 
   // 组件挂载时的初始化
   useEffect(() => {
