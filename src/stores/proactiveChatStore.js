@@ -70,6 +70,39 @@ export const useProactiveChatStore = create((set, get) => ({
     }
   },
 
+	  // 加载沉默时间（从后端获取），未获取到则保持现有值
+	  loadSilenceTimeout: async (currentUserId) => {
+	    const { apiBaseUrl } = get()
+	    if (!currentUserId) {
+	      console.warn('⚠️ 无用户ID，跳过加载沉默时间')
+	      return false
+	    }
+	    try {
+	      const resp = await fetch(`${apiBaseUrl}/proactive/silence-timeout/${currentUserId}`)
+	      if (resp.ok) {
+	        const result = await resp.json()
+	        const timeout = result?.silence_timeout ?? result?.timeout ?? result?.silenceTimeout
+	        if (typeof timeout === 'number' && timeout > 0) {
+	          set({ silenceTimeout: timeout })
+	          console.log(`✅ 加载沉默时间设置: ${timeout}秒`)
+	          return true
+	        } else {
+	          console.warn('⚠️ 后端未返回有效的沉默时间，保留本地值')
+	          return false
+	        }
+	      } else {
+	        const errorText = await resp.text().catch(() => '')
+	        console.error('❌ 加载沉默时间失败:', resp.status, errorText)
+	        return false
+	      }
+	    } catch (error) {
+	      console.error('❌ 加载沉默时间请求异常:', error)
+	      // 开发环境可选择静默
+	      return false
+	    }
+	  },
+
+
   // 切换主动对话状态
   toggleProactiveChat: () => {
     set((state) => ({

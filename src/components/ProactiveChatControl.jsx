@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useProactiveChatStore } from '../stores/proactiveChatStore'
 import { useUserAuthStore } from '../stores/userAuthStore'
 import { ChevronDown, ChevronUp, Settings } from 'lucide-react'
+import { useEffect } from 'react'
 
 const ProactiveChatControl = () => {
   const {
@@ -14,14 +15,22 @@ const ProactiveChatControl = () => {
     toggleProactiveChat,
     toggleDebugInfo,
     getStatusText,
+    loadSilenceTimeout,
     getRecentTopicsText,
     getPendingStatusText,
     resetProactiveChatData
   } = useProactiveChatStore()
 
   const [tempTimeout, setTempTimeout] = useState(silenceTimeout)
+  useEffect(() => {
+    if (!currentUserId) return
+    // 初始化加载沉默时间
+    loadSilenceTimeout(currentUserId)
+  }, [currentUserId])
   // 使用真实的当前用户ID（优先 currentUser.id，其次 session.userId）
   const currentUserId = useUserAuthStore((s) => s.currentUser?.id || s.session?.userId)
+  // 当 store 的 silenceTimeout 更新时同步到临时UI
+  useEffect(() => { setTempTimeout(silenceTimeout) }, [silenceTimeout])
 
   // 处理滑块变化
   const handleSliderChange = (e) => {
@@ -98,8 +107,8 @@ const ProactiveChatControl = () => {
       {/* 主动对话状态 */}
       <div className="proactive-status mb-3">
         <div className={`text-sm font-medium p-2 rounded-lg ${
-          isProactiveChatEnabled 
-            ? 'bg-green-100 text-green-800' 
+          isProactiveChatEnabled
+            ? 'bg-green-100 text-green-800'
             : 'bg-red-100 text-red-800'
         }`}>
           {getStatusText()}
@@ -126,11 +135,11 @@ const ProactiveChatControl = () => {
               {getRecentTopicsText()}
             </div>
           </div>
-          
+
           <div className="text-xs text-yellow-600">
             {getPendingStatusText()}
           </div>
-          
+
           <div className="text-xs text-gray-600">
             <span className="font-medium">对话次数:</span>
             <span className="ml-1">{useProactiveChatStore.getState().proactiveChatCount}</span>
