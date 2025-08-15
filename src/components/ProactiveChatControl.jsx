@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useProactiveChatStore } from '../stores/proactiveChatStore'
+import { useUserAuthStore } from '../stores/userAuthStore'
 import { ChevronDown, ChevronUp, Settings } from 'lucide-react'
 
 const ProactiveChatControl = () => {
@@ -19,7 +20,8 @@ const ProactiveChatControl = () => {
   } = useProactiveChatStore()
 
   const [tempTimeout, setTempTimeout] = useState(silenceTimeout)
-  const [currentUserId] = useState('user_123') // 模拟用户ID，实际项目中从认证系统获取
+  // 使用真实的当前用户ID（优先 currentUser.id，其次 session.userId）
+  const currentUserId = useUserAuthStore((s) => s.currentUser?.id || s.session?.userId)
 
   // 处理滑块变化
   const handleSliderChange = (e) => {
@@ -29,6 +31,10 @@ const ProactiveChatControl = () => {
 
   // 应用设置
   const handleApplySettings = async () => {
+    if (!currentUserId) {
+      console.warn('⚠️ 未登录或未选择用户，无法应用设置')
+      return
+    }
     setSilenceTimeout(tempTimeout)
     const success = await applySilenceTimeout(currentUserId)
     if (success) {
@@ -78,14 +84,14 @@ const ProactiveChatControl = () => {
         />
         <button
           onClick={handleApplySettings}
-          disabled={isApplying || tempTimeout === silenceTimeout}
+          disabled={isApplying || tempTimeout === silenceTimeout || !currentUserId}
           className={`control-btn w-full py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-            isApplying || tempTimeout === silenceTimeout
+            isApplying || tempTimeout === silenceTimeout || !currentUserId
               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
               : 'bg-blue-600 text-white hover:bg-blue-700'
           }`}
         >
-          {isApplying ? '应用中...' : '应用设置'}
+          {isApplying ? '应用中...' : (!currentUserId ? '请先登录/选择用户' : '应用设置')}
         </button>
       </div>
 
