@@ -36,6 +36,9 @@ const FileUploadButton = ({
 }) => {
   const fileInputRef = useRef(null)
 
+  // 保留原始 File 对象，避免被代理/序列化破坏
+  const originalFileRef = React.useRef(null)
+
   const {
     selectFile,
     updateConfig,
@@ -56,11 +59,14 @@ const FileUploadButton = ({
     }
   }, [acceptedTypes, maxFileSize, allowMultiple, updateConfig])
 
-  // 监听文件选择事件
+  // 监听文件选择事件（确保向外抛出原始 File 对象）
   React.useEffect(() => {
     const handleFileSelected = (event) => {
-      if (onFileSelect) {
-        onFileSelect(event.detail.file)
+      // store 中通过 CustomEvent 派发的是 fileObject；其中 fileObject.file 才是原始 File
+      const payload = event?.detail?.file
+      const rawFile = payload instanceof File ? payload : payload?.file
+      if (onFileSelect && rawFile) {
+        onFileSelect(rawFile)
       }
     }
 
@@ -84,6 +90,9 @@ const FileUploadButton = ({
     const files = event.target.files
     if (files && files.length > 0) {
       const file = files[0] // 目前只支持单文件
+      // 保存原始 File 引用，供 URL.createObjectURL 与 FormData.append 使用
+      originalFileRef.current = file
+      // 仅向 store 存入原始 File 以及只读元数据（store 会保留引用，不要对其做 JSON 序列化）
       selectFile(file)
     }
 
