@@ -150,10 +150,12 @@ const WorkingChatInterface = ({
       }
 
       const success = await startUpload(uploadFunction)
-
-      if (success && files.current?.uploadResult?.url) {
-        console.log('✅ 文件上传成功:', files.current.uploadResult.url)
-        return files.current.uploadResult.url
+      // 重新获取最新的状态
+      const { files: latestFiles } = useFileUploadStore.getState()
+      console.log('最新状态:', latestFiles.current)
+      if (success && latestFiles.current?.uploadResult?.url) {
+        console.log('✅ 文件上传成功:', latestFiles.current.uploadResult.url)
+        return latestFiles.current.uploadResult.url
       }
     } catch (error) {
       console.error('❌ 文件上传失败:', error)

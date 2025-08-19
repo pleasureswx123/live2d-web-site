@@ -21,7 +21,7 @@ export const useFileUploadStore = create((set, get) => ({
   // 配置
   config: {
     acceptedTypes: ['image/*', '.pdf', '.txt', '.doc', '.docx'],
-    maxFileSize: 10 * 1024 * 1024, // 10MB
+    maxFileSize: 100 * 1024 * 1024, // 10MB
     allowMultiple: false,
     autoUpload: false,
     enableHistory: true
@@ -37,7 +37,7 @@ export const useFileUploadStore = create((set, get) => ({
   // 选择文件
   selectFile: (file) => {
     const { validateFile, addToHistory, clearError } = get()
-    
+
     // 验证文件
     const validation = validateFile(file)
     if (!validation.isValid) {
@@ -101,7 +101,7 @@ export const useFileUploadStore = create((set, get) => ({
   // 移除当前文件
   removeFile: () => {
     const { files } = get()
-    
+
     // 释放预览URL
     if (files.current?.preview) {
       URL.revokeObjectURL(files.current.preview)
@@ -127,12 +127,12 @@ export const useFileUploadStore = create((set, get) => ({
   // 清除所有文件
   clearFiles: () => {
     const { files } = get()
-    
+
     // 释放所有预览URL
     if (files.current?.preview) {
       URL.revokeObjectURL(files.current.preview)
     }
-    
+
     files.queue.forEach(fileObj => {
       if (fileObj.preview) {
         URL.revokeObjectURL(fileObj.preview)
@@ -157,7 +157,7 @@ export const useFileUploadStore = create((set, get) => ({
   // 验证文件
   validateFile: (file) => {
     const { config } = get()
-    
+
     // 检查文件大小
     if (file.size > config.maxFileSize) {
       return {
@@ -283,7 +283,7 @@ export const useFileUploadStore = create((set, get) => ({
   // 开始上传
   startUpload: async (uploadFunction) => {
     const { files } = get()
-    
+
     if (!files.current) {
       get().setError('没有选择文件', 'upload')
       return false
@@ -391,7 +391,7 @@ export const useFileUploadStore = create((set, get) => ({
   reset: () => {
     const { clearFiles } = get()
     clearFiles()
-    
+
     set({
       ui: {
         previewVisible: false,
@@ -412,11 +412,11 @@ export const useFileUploadStore = create((set, get) => ({
 // 工具函数：格式化文件大小
 function formatFileSize(bytes) {
   if (bytes === 0) return '0 Bytes'
-  
+
   const k = 1024
   const sizes = ['Bytes', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
