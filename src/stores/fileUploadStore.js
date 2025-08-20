@@ -90,10 +90,10 @@ export const useFileUploadStore = create((set, get) => ({
     }
 
     // 触发文件选择事件
-    const event = new CustomEvent('fileSelected', {
-      detail: { file: fileObject }
-    })
-    window.dispatchEvent(event)
+    // const event = new CustomEvent('fileSelected', {
+    //   detail: { file: fileObject }
+    // })
+    // window.dispatchEvent(event)
 
     return true
   },
@@ -341,12 +341,12 @@ export const useFileUploadStore = create((set, get) => ({
       }))
 
       // 触发上传成功事件
-      const event = new CustomEvent('fileUploadSuccess', {
-        detail: { file: files.current, result }
-      })
-      window.dispatchEvent(event)
+      // const event = new CustomEvent('fileUploadSuccess', {
+      //   detail: { file: files.current, result }
+      // })
+      // window.dispatchEvent(event)
 
-      return true
+      return result
 
     } catch (error) {
       // 上传失败
