@@ -305,27 +305,31 @@ export const WebSocketProvider = ({ children }) => {
         break
 
       case 'asr_started':
-        // ASR识别开始
-        console.log('🎤 ASR识别已开始')
-        onASRStarted()
+        console.log('🎤 服务器确认ASR已启动')
+        if (asrStore.onASRStarted) {
+          asrStore.onASRStarted()
+        }
         break
 
       case 'asr_result':
-        // ASR识别结果
-        console.log('🎤 ASR识别结果:', data.text, '(final:', data.is_final, ')')
-        onASRResult(data.text, data.is_final, data.confidence)
+        console.log('🎤 ASR识别结果:', data.text, '(final:', data.is_final, ', confidence:', data.confidence, ')')
+        if (asrStore.onASRResult) {
+          asrStore.onASRResult(data.text, data.is_final, data.confidence)
+        }
         break
 
       case 'asr_stopped':
-        // ASR识别停止
-        console.log('🎤 ASR识别已停止')
-        onASRStopped()
+        console.log('🎤 服务器确认ASR已停止')
+        if (asrStore.onASRStopped) {
+          asrStore.onASRStopped()
+        }
         break
 
       case 'asr_error':
-        // ASR识别错误
         console.error('❌ ASR识别错误:', data.error)
-        onASRError(data.error)
+        if (asrStore.onASRError) {
+          asrStore.onASRError(data.error)
+        }
         break
 
       case 'error':
@@ -820,41 +824,7 @@ export const WebSocketProvider = ({ children }) => {
     console.log('⚡ 更新档案转换 - 待实现')
   }
 
-  const onASRStarted = () => {
-    // 调用 ASR Store 的处理函数
-    if (asrStore.onASRStarted) {
-      asrStore.onASRStarted()
-    } else {
-      console.log('🎤 ASR开始 - ASR Store 未初始化')
-    }
-  }
-
-  const onASRResult = (text, isFinal, confidence) => {
-    // 调用 ASR Store 的处理函数
-    if (asrStore.onASRResult) {
-      asrStore.onASRResult(text, isFinal, confidence)
-    } else {
-      console.log('🎤 ASR结果 - ASR Store 未初始化')
-    }
-  }
-
-  const onASRStopped = () => {
-    // 调用 ASR Store 的处理函数
-    if (asrStore.onASRStopped) {
-      asrStore.onASRStopped()
-    } else {
-      console.log('🎤 ASR停止 - ASR Store 未初始化')
-    }
-  }
-
-  const onASRError = (error) => {
-    // 调用 ASR Store 的处理函数
-    if (asrStore.onASRError) {
-      asrStore.onASRError(error)
-    } else {
-      console.log('🎤 ASR错误 - ASR Store 未初始化')
-    }
-  }
+  // ASR事件处理函数已移至上方switch语句中直接调用asrStore方法
 
   const appendBotMessage = (message) => {
     console.log('💬 追加机器人消息 - 待实现')

@@ -32,8 +32,8 @@ const WorkingChatInterface = ({
   const [message, setMessage] = useState('')
   const [isComposing, setIsComposing] = useState(false)
   const [isSending, setIsSending] = useState(false)
-  // 空格键ASR自动发送的挂起控制
-  const pendingASRAutoSendRef = useRef({ active: false, timeoutId: null, text: '' })
+  // ASR状态监控
+  const asrStateRef = useRef({ isProcessing: false })
 
   // Refs
   const textareaRef = useRef(null)
@@ -56,9 +56,8 @@ const WorkingChatInterface = ({
     startUpload
   } = useFileUploadStore()
   const {
-    recording,
+    status: recording,
     recognition,
-    ui: asrUI,
     connection: asrConnection,
     startSpaceKeyASR,
     stopSpaceKeyASR,
@@ -237,17 +236,19 @@ const WorkingChatInterface = ({
     }
   }
 
-  // 处理ASR模式切换
   // 长按空格键ASR状态
   const [isSpacePressed, setIsSpacePressed] = useState(false)
-  const [spaceKeyStartTime, setSpaceKeyStartTime] = useState(null)
+  const spaceKeyStartTimeRef = useRef(null)
 
   // 处理长按空格键ASR
   const handleSpaceKeyDown = useCallback(() => {
-    if (isSpacePressed || recording.isSpaceKeyASRActive || isSending) return
+    if (isSpacePressed || recording.isSpaceKeyActive || isSending) {
+      return
+    }
 
+    console.log('🎤 开始长按空格键ASR')
     setIsSpacePressed(true)
-    setSpaceKeyStartTime(Date.now())
+    spaceKeyStartTimeRef.current = Date.now()
 
     // 停止所有TTS音频
     stopAllTTSAudio()
@@ -256,39 +257,52 @@ const WorkingChatInterface = ({
     startSpaceKeyASR()
 
     if (onNotification) {
-      onNotification('开始语音识别，松开空格键结束', 'info')
+      onNotification('正在录音，松开空格键结束', 'info')
     }
-  }, [isSpacePressed, recording.isSpaceKeyASRActive, isSending, startSpaceKeyASR, stopAllTTSAudio, onNotification])
+  }, [isSpacePressed, recording.isSpaceKeyActive, isSending, startSpaceKeyASR, onNotification])
 
   const handleSpaceKeyUp = useCallback(() => {
-    if (!isSpacePressed) return
+    if (!isSpacePressed) {
+      return
+    }
 
+    console.log('🎤 结束长按空格键ASR')
     setIsSpacePressed(false)
-    const duration = spaceKeyStartTime ? Date.now() - spaceKeyStartTime : 0
-    setSpaceKeyStartTime(null)
+    
+    const duration = spaceKeyStartTimeRef.current ? 
+      Date.now() - spaceKeyStartTimeRef.current : 0
+    spaceKeyStartTimeRef.current = null
 
     // 停止长按空格键ASR
     stopSpaceKeyASR()
 
     if (onNotification) {
-      onNotification(`语音识别完成 (${(duration / 1000).toFixed(1)}秒)`, 'success')
+      onNotification(`录音完成 (${(duration / 1000).toFixed(1)}秒)`, 'success')
     }
-  }, [isSpacePressed, spaceKeyStartTime, stopSpaceKeyASR, onNotification])
+  }, [isSpacePressed, stopSpaceKeyASR, onNotification])
+
+  // 检查是否在输入框中
+  const isInInputElement = () => {
+    const activeElement = document.activeElement
+    return activeElement && (
+      activeElement.tagName === 'INPUT' ||
+      activeElement.tagName === 'TEXTAREA' ||
+      activeElement.contentEditable === 'true'
+    )
+  }
 
   // 全局键盘事件监听（长按空格键ASR）
   useEffect(() => {
-    const handleGlobalKeyDown = (event) => {
-      // 只在空格键且不在输入框中时处理
-      if (event.code === 'Space' && !event.repeat && enableASR && asrConnection.isConnected) {
-        // 检查是否在输入框或其他可编辑元素中
-        const activeElement = document.activeElement
-        const isInInput = activeElement && (
-          activeElement.tagName === 'INPUT' ||
-          activeElement.tagName === 'TEXTAREA' ||
-          activeElement.contentEditable === 'true'
-        )
+    if (!enableASR || !asrConnection.isConnected) {
+      console.log('🎤 ASR未启用或未连接，跳过键盘事件监听')
+      return
+    }
 
-        if (!isInInput) {
+    const handleGlobalKeyDown = (event) => {
+      // 只处理空格键且非重复事件
+      if (event.code === 'Space' && !event.repeat) {
+        // 检查是否在输入框中
+        if (!isInInputElement()) {
           event.preventDefault()
           handleSpaceKeyDown()
         }
@@ -296,15 +310,9 @@ const WorkingChatInterface = ({
     }
 
     const handleGlobalKeyUp = (event) => {
-      if (event.code === 'Space' && enableASR) {
-        const activeElement = document.activeElement
-        const isInInput = activeElement && (
-          activeElement.tagName === 'INPUT' ||
-          activeElement.tagName === 'TEXTAREA' ||
-          activeElement.contentEditable === 'true'
-        )
-
-        if (!isInInput) {
+      if (event.code === 'Space') {
+        // 检查是否在输入框中
+        if (!isInInputElement()) {
           event.preventDefault()
           handleSpaceKeyUp()
         }
@@ -329,93 +337,57 @@ const WorkingChatInterface = ({
 
   // 监听ASR事件并集成到输入框
   useEffect(() => {
+    // 实时输入更新（中间结果）
     const handleASRInputUpdate = (event) => {
-      const { text, mode } = event.detail
-      console.log('🎤 ASR输入更新:', text, mode)
+      const { text, isFinal, mode } = event.detail
+      console.log('🎤 ASR实时更新:', text, 'isFinal:', isFinal, 'mode:', mode)
 
-      // 直接更新输入框内容
+      // 更新输入框内容
       if (text && text.trim()) {
         setMessage(text.trim())
-        // 自动调整输入框高度
         setTimeout(autoResizeTextarea, 0)
       }
     }
 
-    const handleASRResult = (event) => {
-      const { text, mode } = event.detail
-      console.log('🎤 ASR最终结果:', text, 'mode:', mode)
+    // ASR完成事件（最终结果）
+    const handleASRComplete = (event) => {
+      const { finalText, mode, confidence, trigger } = event.detail
+      console.log('🎤 ASR完成:', finalText, 'mode:', mode, 'confidence:', confidence, 'trigger:', trigger)
 
-      const trimmed = (text || '').trim()
-      if (trimmed) {
-        // 设置输入框内容
-        setMessage(trimmed)
-        setTimeout(autoResizeTextarea, 0)
-
-        if (mode === 'spacekey_final') {
-          // 空格键长按场景：为了消息完整性，优先等待服务器 asr_stopped 最终文本；
-          // 若超时未到，兜底使用当前文本自动发送。
-          if (pendingASRAutoSendRef.current.timeoutId) {
-            clearTimeout(pendingASRAutoSendRef.current.timeoutId)
-          }
-          pendingASRAutoSendRef.current.active = true
-          pendingASRAutoSendRef.current.text = trimmed
-          pendingASRAutoSendRef.current.timeoutId = setTimeout(() => {
-            if (pendingASRAutoSendRef.current.active) {
-              console.log('⏱️ 等待服务器最终文本超时，使用本地最终结果自动发送')
-              pendingASRAutoSendRef.current.active = false
-              pendingASRAutoSendRef.current.timeoutId = null
-              // 发送当前输入框内容
-              handleSendMessage()
-            }
-          }, 1000)
-        }
-      }
-    }
-
-    const handleASRError = (event) => {
-      const { error, originalError, mode } = event.detail
-      console.error('❌ ASR错误:', error, 'mode:', mode)
-      if (onError) onError(`语音识别错误: ${error}`)
-    }
-
-    const handleASRStopped = (event) => {
-      const { finalText, mode } = event.detail
-      console.log('🎤 ASR已停止, mode:', mode, 'finalText:', finalText)
-
-      // 使用服务器提供的最终文本，如果没有则使用当前识别文本
-      let textToUse = (finalText || '').trim()
-      if (!textToUse && recognition.currentText && recognition.currentText.trim()) {
-        textToUse = recognition.currentText.trim()
-        console.log('🎤 使用当前识别文本:', textToUse)
-      }
-
-      if (pendingASRAutoSendRef.current.active) {
-        // 这是空格键长按流程的停止事件，优先以服务器给的最终文本为准
-        if (pendingASRAutoSendRef.current.timeoutId) {
-          clearTimeout(pendingASRAutoSendRef.current.timeoutId)
-        }
-        pendingASRAutoSendRef.current.active = false
-        pendingASRAutoSendRef.current.timeoutId = null
-
-        if (textToUse) {
-          setMessage(textToUse)
-          setTimeout(autoResizeTextarea, 0)
-          // 自动发送，确保完整性
-          handleSendMessage()
-        }
+      const trimmed = (finalText || '').trim()
+      if (!trimmed) {
+        console.log('🎤 ASR完成但无效结果，finalText:', finalText)
         return
       }
 
-      // 非空格键场景：保持原先行为，仅写回输入框，等待用户手动发送
-      if (textToUse) {
-        setMessage(textToUse)
-        setTimeout(autoResizeTextarea, 0)
+      // 更新输入框
+      setMessage(trimmed)
+      setTimeout(autoResizeTextarea, 0)
+
+      if (mode === 'spacekey_final') {
+        // 空格键长按模式：自动发送
+        console.log('🎤 空格键模式自动发送:', trimmed)
+        setTimeout(() => {
+          handleSendMessage()
+        }, 100) // 延迟100ms确保输入框更新完成
+      } else {
+        // 其他模式：提示用户手动发送
         if (onNotification) {
-          onNotification('语音识别已停止，请确认内容后发送', 'info')
+          onNotification('语音识别完成，请确认内容后发送', 'info')
         }
       }
     }
 
+    // ASR错误处理
+    const handleASRError = (event) => {
+      const { error } = event.detail
+      console.error('❌ ASR错误:', error)
+      if (onError) {
+        onError(`语音识别错误: ${error}`)
+      }
+    }
+
+    // ASR服务启动确认
     const handleASRServerStarted = (event) => {
       const { mode } = event.detail
       console.log('🎤 服务器确认ASR已启动, mode:', mode)
@@ -426,19 +398,17 @@ const WorkingChatInterface = ({
 
     // 注册事件监听器
     window.addEventListener('asrInputUpdate', handleASRInputUpdate)
-    window.addEventListener('asrResult', handleASRResult)
+    window.addEventListener('asrComplete', handleASRComplete)
     window.addEventListener('asrServerError', handleASRError)
-    window.addEventListener('asrServerStopped', handleASRStopped)
     window.addEventListener('asrServerStarted', handleASRServerStarted)
 
     return () => {
       window.removeEventListener('asrInputUpdate', handleASRInputUpdate)
-      window.removeEventListener('asrResult', handleASRResult)
+      window.removeEventListener('asrComplete', handleASRComplete)
       window.removeEventListener('asrServerError', handleASRError)
-      window.removeEventListener('asrServerStopped', handleASRStopped)
       window.removeEventListener('asrServerStarted', handleASRServerStarted)
     }
-  }, [recording.isSpaceKeyASRActive, onError, onNotification, handleSendMessage])
+  }, [onError, onNotification, handleSendMessage])
 
   // 组件挂载时的初始化
   useEffect(() => {
@@ -487,13 +457,13 @@ const WorkingChatInterface = ({
           <div className="relative">
             {/* 主输入容器 */}
             <div className={`relative bg-white border rounded-xl shadow-sm transition-all duration-200 ${
-              recording.isSpaceKeyASRActive || isSpacePressed
+              recording.isSpaceKeyActive || isSpacePressed
                 ? 'border-red-300 shadow-red-100'
                 : 'border-gray-200 hover:border-gray-300 focus-within:border-blue-500 focus-within:shadow-blue-100'
             }`}>
 
               {/* 录音状态覆盖层 */}
-              {(recording.isSpaceKeyASRActive || isSpacePressed) && (
+              {(recording.isSpaceKeyActive || isSpacePressed) && (
                 <div className="absolute inset-0 bg-gradient-to-r from-red-50 to-pink-50 rounded-xl flex items-center justify-center z-20 backdrop-blur-sm">
                   <div className="flex items-center space-x-4 text-red-600">
                     {/* 动态波形 */}
@@ -553,7 +523,7 @@ const WorkingChatInterface = ({
                   {enableASR && (
                     <div className="relative group">
                       <div className={`p-2 rounded-lg transition-all duration-200 ${
-                        recording.isSpaceKeyASRActive || isSpacePressed
+                        recording.isSpaceKeyActive || isSpacePressed
                           ? 'bg-red-100 text-red-600'
                           : asrConnection.isConnected
                           ? 'bg-green-50 text-green-600'
@@ -562,7 +532,7 @@ const WorkingChatInterface = ({
                         <Mic className="w-4 h-4" />
                       </div>
                       <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                        {recording.isSpaceKeyASRActive || isSpacePressed
+                        {recording.isSpaceKeyActive || isSpacePressed
                           ? '正在录音'
                           : asrConnection.isConnected
                           ? '语音识别就绪'
@@ -592,7 +562,7 @@ const WorkingChatInterface = ({
                   {/* 字符计数和识别结果 */}
                   <div className="absolute bottom-1 right-1 flex items-center space-x-2">
                     {/* 实时识别结果预览 */}
-                    {recognition.currentText && (recording.isSpaceKeyASRActive || isSpacePressed) && (
+                    {recognition.currentText && (recording.isSpaceKeyActive || isSpacePressed) && (
                       <div className="px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded-md max-w-32 truncate">
                         {recognition.currentText}
                       </div>
@@ -668,20 +638,20 @@ const WorkingChatInterface = ({
                 {enableASR && (
                   <div className="flex items-center space-x-1.5">
                     <div className={`w-2 h-2 rounded-full ${
-                      recording.isSpaceKeyASRActive || isSpacePressed
+                      recording.isSpaceKeyActive || isSpacePressed
                         ? 'bg-red-500 animate-pulse'
                         : asrConnection.isConnected
                         ? 'bg-green-500'
                         : 'bg-gray-400'
                     }`} />
                     <span className={`${
-                      recording.isSpaceKeyASRActive || isSpacePressed
+                      recording.isSpaceKeyActive || isSpacePressed
                         ? 'text-red-600'
                         : asrConnection.isConnected
                         ? 'text-green-600'
                         : 'text-gray-500'
                     }`}>
-                      {recording.isSpaceKeyASRActive || isSpacePressed
+                      {recording.isSpaceKeyActive || isSpacePressed
                         ? '录音中'
                         : asrConnection.isConnected
                         ? '语音就绪'
