@@ -510,7 +510,7 @@ const WorkingChatInterface = ({
                         />
                       ))}
                     </div>
-                    <style jsx>{`
+                    <style>{`
                       @keyframes wave {
                         0%, 100% { transform: scaleY(1); }
                         50% { transform: scaleY(1.8); }
