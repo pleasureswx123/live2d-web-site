@@ -34,6 +34,8 @@ const WorkingChatInterface = ({
   const [isSending, setIsSending] = useState(false)
   // ASR状态监控
   const asrStateRef = useRef({ isProcessing: false })
+  // 使用 ref 来获取最新的 message 值
+  const messageRef = useRef('')
 
   // Refs
   const textareaRef = useRef(null)
@@ -101,7 +103,9 @@ const WorkingChatInterface = ({
 
   // 处理输入变化
   const handleInputChange = (e) => {
-    setMessage(e.target.value)
+    const newValue = e.target.value
+    setMessage(newValue)
+    messageRef.current = newValue // 同步更新 ref
     autoResizeTextarea()
   }
 
@@ -161,8 +165,9 @@ const WorkingChatInterface = ({
   }
 
   // 发送消息
-  const handleSendMessage = async () => {
-    const trimmedMessage = message.trim()
+  const handleSendMessage = useCallback(async () => {
+    // 使用 ref 获取最新的 message 值，避免闭包陷阱
+    const trimmedMessage = messageRef.current.trim()
 
     // 验证消息内容
     if (!trimmedMessage && !selectedFile) {
@@ -234,7 +239,7 @@ const WorkingChatInterface = ({
     } finally {
       setIsSending(false)
     }
-  }
+  }, [selectedFile, connectionStatus, onError, onNotification, sendMessage, shouldTriggerSearch, showSearchIndicator, handleFileUpload, addUserMessage, removeFile, autoResizeTextarea, scrollToBottom, stopAllTTSAudio])
 
   // 长按空格键ASR状态
   const [isSpacePressed, setIsSpacePressed] = useState(false)
@@ -344,7 +349,9 @@ const WorkingChatInterface = ({
 
       // 更新输入框内容
       if (text && text.trim()) {
-        setMessage(text.trim())
+        const trimmedText = text.trim()
+        setMessage(trimmedText)
+        messageRef.current = trimmedText // 同步更新 ref
         setTimeout(autoResizeTextarea, 0)
       }
     }
@@ -362,6 +369,7 @@ const WorkingChatInterface = ({
 
       // 更新输入框
       setMessage(trimmed)
+      messageRef.current = trimmed // 同步更新 ref
       setTimeout(autoResizeTextarea, 0)
 
       if (mode === 'spacekey_final') {
@@ -414,6 +422,11 @@ const WorkingChatInterface = ({
   useEffect(() => {
     autoResizeTextarea()
   }, [])
+
+  // 同步 message 状态到 ref
+  useEffect(() => {
+    messageRef.current = message
+  }, [message])
 
   // 监听消息变化，自动滚动
   useEffect(() => {

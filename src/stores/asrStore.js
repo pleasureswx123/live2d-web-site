@@ -77,7 +77,7 @@ export const useASRStore = create((set, get) => ({
   // ===================
   // 开始长按空格键ASR
   startSpaceKeyASR: async () => {
-    const {status, connection} = get()
+    const {status} = get()
     if (status.isSpaceKeyActive || status.isRecording) {
       console.log('🎤 ASR已在运行中，跳过')
       return
@@ -123,7 +123,7 @@ export const useASRStore = create((set, get) => ({
       setTimeout(() => {
         console.log('⏰ 延迟发送stop_asr（允许后端处理完剩余音频）')
         get().sendStopASR()
-      }, 1000) // 延迟800ms发送stop_asr
+      }, 2000) // 延迟发送stop_asr
     } catch (error) {
       console.error('❌ 停止长按空格键ASR失败:', error)
       get().handleASRError(error.message)
@@ -146,7 +146,7 @@ export const useASRStore = create((set, get) => ({
   // ===================
   // 开始录音
   startRecording: async () => {
-    const {connection, audio} = get()
+    const {connection} = get()
     try {
       console.log('🎤 开始录音')
       // 请求麦克风权限
@@ -355,7 +355,7 @@ export const useASRStore = create((set, get) => ({
   },
   // 触发ASR完成事件
   triggerASRComplete: (finalText = '', trigger = 'manual') => {
-    const {recognition, status} = get()
+    const {recognition} = get()
     const textToUse = finalText || recognition.lastCompleteText || recognition.currentText || ''
     console.log(`🎤 ASR完成: "${textToUse}" (trigger: ${trigger})`)
     // 重置状态
