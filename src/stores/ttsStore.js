@@ -240,76 +240,42 @@ export const useTTSStore = create((set, get) => ({
         }
       }
 
+      // 创建音频结束处理函数
+      const handleAudioEnd = (isError = false, error = null) => {
+        if (isError) {
+          console.error('音频播放错误:', error)
+        } else {
+          console.log('音频播放完成')
+        }
+
+        // 停止Live2D嘴部同步
+        if (window.__stopLipSync) {
+          window.__stopLipSync()
+        }
+
+        // 清理音频状态
+        set((state) => {
+          const currentAudioElements = state.audio.audioElements.filter(el => el !== audio)
+          const newCurrentAudio = state.audio.currentAudio === audio ? null : state.audio.currentAudio
+          
+          return {
+            audio: {
+              ...state.audio,
+              audioElements: currentAudioElements,
+              currentAudio: newCurrentAudio
+            }
+          }
+        })
+
+        // 调用完成回调
+        if (onComplete) {
+          onComplete()
+        }
+      }
+
       // 设置事件监听器
-      audio.onended = () => {
-        console.log('音频播放完成')
-
-        // 停止Live2D嘴部同步
-        if (window.__stopLipSync) {
-          window.__stopLipSync()
-        }
-
-        // 从跟踪列表中移除
-        const { audio } = get()
-        const index = audio.audioElements.indexOf(audio)
-        if (index > -1) {
-          set((state) => ({
-            audio: {
-              ...state.audio,
-              audioElements: state.audio.audioElements.filter((_, i) => i !== index)
-            }
-          }))
-        }
-
-        if (audio.currentAudio === audio) {
-          set((state) => ({
-            audio: {
-              ...state.audio,
-              currentAudio: null
-            }
-          }))
-        }
-
-        // 调用完成回调
-        if (onComplete) {
-          onComplete()
-        }
-      }
-
-      audio.onerror = (e) => {
-        console.error('音频播放错误:', e)
-
-        // 停止Live2D嘴部同步
-        if (window.__stopLipSync) {
-          window.__stopLipSync()
-        }
-
-        // 从跟踪列表中移除
-        const { audio } = get()
-        const index = audio.audioElements.indexOf(audio)
-        if (index > -1) {
-          set((state) => ({
-            audio: {
-              ...state.audio,
-              audioElements: state.audio.audioElements.filter((_, i) => i !== index)
-            }
-          }))
-        }
-
-        if (audio.currentAudio === audio) {
-          set((state) => ({
-            audio: {
-              ...state.audio,
-              currentAudio: null
-            }
-          }))
-        }
-
-        // 调用完成回调
-        if (onComplete) {
-          onComplete()
-        }
-      }
+      audio.onended = () => handleAudioEnd(false)
+      audio.onerror = (e) => handleAudioEnd(true, e)
 
       console.log('✅ 音频播放成功')
 
