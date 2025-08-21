@@ -1,0 +1,12 @@
+// 统一导出所有stores
+export { useASRStore } from './asrStore'
+export { useChatMessagesStore } from './chatMessagesStore'
+export { useProactiveChatStore } from './proactiveChatStore'
+export { useUserAuthStore } from './userAuthStore'
+export { useTypingIndicatorStore } from './typingIndicatorStore'
+export { useChatHeaderStore } from './chatHeaderStore'
+export { useSystemControlStore } from './systemControlStore'
+export { useProfileStore } from './profileStore'
+export { useConversionStore } from './conversionStore'
+export { useFileUploadStore } from './fileUploadStore'
+export { useTTSStore } from './ttsStore'
