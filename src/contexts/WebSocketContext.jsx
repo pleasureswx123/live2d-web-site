@@ -405,22 +405,13 @@ export const WebSocketProvider = ({ children }) => {
       ttsStore.clearAudioQueue()
     }
 
-    // 定期检查音频状态
-    const checkAudioStatus = () => {
-      ttsStore.showAudioStatus()
-    }
-
     // 注册事件监听器
     window.addEventListener('stopAllTTS', handleStopAllTTS)
     window.addEventListener('clearAudioQueue', handleClearAudioQueue)
 
-    // 每30秒检查一次音频状态
-    const interval = setInterval(checkAudioStatus, 30000)
-
     return () => {
       window.removeEventListener('stopAllTTS', handleStopAllTTS)
       window.removeEventListener('clearAudioQueue', handleClearAudioQueue)
-      clearInterval(interval)
     }
   }, [ttsStore])
 
