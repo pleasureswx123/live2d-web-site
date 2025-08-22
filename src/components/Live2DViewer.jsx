@@ -206,9 +206,30 @@ export default function Live2DViewer({
       // Cubism4 参数写入
       const core = m.internalModel && m.internalModel.coreModel;
       if (core) {
+        // 强制设置嘴部参数，覆盖表情的影响
         core.setParameterValueById('ParamMouthOpenY', y);
         // 可选：根据能量稍微变一下嘴型
         core.setParameterValueById('ParamMouthForm', y * 0.6);
+        // 如果模型有其他嘴部相关参数，也一并控制
+        try {
+          // 检查是否有其他嘴部参数需要控制
+          const mouthParams = ['MouthX', 'MouthPuckerWiden', 'ParamMouthOpenY', 'ParamMouthForm'];
+          mouthParams.forEach(paramId => {
+            if (paramId === 'ParamMouthOpenY') {
+              core.setParameterValueById(paramId, y);
+            } else if (paramId === 'ParamMouthForm') {
+              core.setParameterValueById(paramId, y * 0.6);
+            } else if (paramId === 'MouthX') {
+              // 轻微的左右移动，增加自然感
+              core.setParameterValueById(paramId, Math.sin(performance.now() * 0.006) * y * 0.3);
+            } else if (paramId === 'MouthPuckerWiden') {
+              core.setParameterValueById(paramId, y * 0.8);
+            }
+          });
+        } catch (e) {
+          // 忽略不存在的参数错误
+          console.warn('mouth param error:', e);
+        }
       }
       if (rafId) rafId = requestAnimationFrame(tick);
     }
@@ -225,6 +246,22 @@ export default function Live2DViewer({
         m.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', 0);
         m.internalModel.coreModel.setParameterValueById('ParamMouthForm', 0);
       }
+      if (m && typeof m.expression === 'function') {
+        try {
+          m.expression('neutral');
+          console.log('🎭 切换到中性表情以支持口型同步');
+        } catch (e) {
+          console.warn('🎭 切换到中性表情失败:', e);
+        }
+      }
+
+      // 重置表情参数
+      const em = m.internalModel.motionManager.expressionManager
+      em.setExpression('')
+      // 停止所有动作并重置
+      const mm = m.internalModel.motionManager;
+      mm.stopAllMotions()
+      mm.currentMotion = null
     }
 
     // 暴露两个全局函数，供音频播放时调用
@@ -237,6 +274,24 @@ export default function Live2DViewer({
         source.connect(analyser);
         analyser.connect(ctx.destination); // 不想二次放音可不接 destination
         rafId = requestAnimationFrame(tick);
+        // 切换到中性表情以确保口型同步正常工作
+        const model = window.live2dModel;
+        if (model && typeof model.expression === 'function') {
+          try {
+            model.expression('tuosai');
+            console.log('🎭 切换到中性表情以支持口型同步');
+          } catch (e) {
+            console.warn('🎭 切换到中性表情失败:', e);
+          }
+        }
+        if (model && typeof model.motion === 'function') {
+          try {
+            model.motion('TapBody', 2, {loop: true});
+            console.log('🎭 切换到中性表情以支持口型同步');
+          } catch (e) {
+            console.warn('🎭 切换到中性表情失败:', e);
+          }
+        }
       } catch (e) {
         console.warn('🎤 悠悠口型同步启动失败:', e);
       }

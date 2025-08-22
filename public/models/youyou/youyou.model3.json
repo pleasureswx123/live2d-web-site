@@ -10,6 +10,10 @@
 		"DisplayInfo": "youyou.cdi3.json",
 		"Expressions": [
 			{
+				"Name": "neutral",
+				"File": "neutral.exp3.json"
+			},
+			{
 				"Name": "aojiao",
 				"File": "aojiao.exp3.json"
 			},
