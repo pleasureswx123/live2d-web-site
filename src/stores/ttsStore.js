@@ -405,13 +405,13 @@ export const useTTSStore = create((set, get) => {
         }
 
         // 方法2: 使用表情管理器
-        if (!success && model.internalModel?.motionManager?.expressionManager) {
-          const em = model.internalModel.motionManager.expressionManager
-          if (typeof em.setExpression === 'function') {
-            const result = em.setExpression(expressionName)
-            success = typeof result?.then === 'function' ? await result : result !== false
-          }
-        }
+        // if (!success && model.internalModel?.motionManager?.expressionManager) {
+        //   const em = model.internalModel.motionManager.expressionManager
+        //   if (typeof em.setExpression === 'function') {
+        //     const result = em.setExpression(expressionName)
+        //     success = typeof result?.then === 'function' ? await result : result !== false
+        //   }
+        // }
 
         if (success) {
           set((state) => ({

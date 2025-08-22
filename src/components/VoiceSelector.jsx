@@ -16,7 +16,7 @@ const VoiceSelector = () => {
   }
 
   return (
-    <div className="voice-selector-sidebar">
+    <div className="voice-selector-sidebar  p-4 shadow-lg rounded-xl">
       {/* 标题 */}
       <div className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
         🎵 音色选择

@@ -67,7 +67,7 @@ const ProactiveChatControl = () => {
   }
 
   return (
-    <div className="proactive-chat-controls">
+    <div className="proactive-chat-controls  p-4 shadow-lg rounded-xl">
       {/* 标题和说明 */}
       <div className="proactive-info mb-4">
         <div className="flex items-center justify-between mb-2">

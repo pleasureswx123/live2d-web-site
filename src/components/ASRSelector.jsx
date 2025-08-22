@@ -16,7 +16,7 @@ const ASRSelector = () => {
   }
 
   return (
-    <div className="asr-selector-sidebar">
+    <div className="asr-selector-sidebar  p-4 shadow-lg rounded-xl">
       {/* 标题 */}
       <div className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
         🎤 语音识别

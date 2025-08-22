@@ -4,7 +4,7 @@ import {WebSocketProvider} from './contexts/WebSocketContext'
 import {ToastProvider, useToast} from './components/ui/toast'
 import {useUserAuthStore} from './stores/userAuthStore'
 import Live2DViewer from './components/Live2DViewer'
-import SettingsDrawer from './components/SettingsDrawer'
+// import SettingsDrawer from './components/SettingsDrawer'
 import SidebarDrawer from './components/SidebarDrawer'
 import RightDrawer from './components/RightDrawer'
 import VoiceSelector from './components/VoiceSelector'
@@ -19,7 +19,6 @@ import SystemControl from './components/SystemControl'
 import UserInfoCard from './components/UserInfoCard'
 import LoginDialog from './components/LoginDialog'
 import SwitchUserDialog from './components/SwitchUserDialog'
-import TTSChat from './components/TTSChat'
 import WebSocketStatus from './components/WebSocketStatus'
 import WorkingChatInterface from './components/WorkingChatInterface'
 // 自适应窗口尺寸（含 dpr 改变时的刷新）
@@ -124,53 +123,30 @@ const AppContent = () => {
         />
       </div>
 
-      {/* 保留原有的TTS聊天组件（用于Live2D集成） */}
-      {/*{currentModel && pixiApp && (*/}
-      {/*  <TTSChat model={currentModel} app={pixiApp} wsUrl={"ws://localhost:8000/tts"}/>*/}
-      {/*)}*/}
-
-      <SettingsDrawer
+      {/*<SettingsDrawer
         model={currentModel}
         app={pixiApp}         // ← 需要就把 app 也给到
         info={modelInfo}
         isOpen={isDrawerOpen}
         onOpenChange={setIsDrawerOpen}
-      />
+      />*/}
 
       <SidebarDrawer>
         <UserInfoCard/>
-        <div className="mt-6">
-          <WebSocketStatus/>
-        </div>
-        <div className="mt-6">
-          <SystemControl/>
-        </div>
-        <div className="mt-6">
-          <ProactiveChatControl/>
-        </div>
-        <div className="mt-6">
-          <VoiceSelector/>
-        </div>
-        <div className="mt-6">
-          <SpeedControl/>
-        </div>
-        <div className="mt-6">
-          <ASRSelector/>
-        </div>
-        <div className="mt-6">
-          <ConversationStage/>
-        </div>
+        <WebSocketStatus/>
+        <SystemControl/>
+        <ProactiveChatControl/>
+        <VoiceSelector/>
+        <SpeedControl/>
+        <ASRSelector/>
+        <ConversationStage/>
       </SidebarDrawer>
 
       {/* 右侧抽屉组件 */}
       <RightDrawer>
         <UserProfile/>
-        <div className="mt-6">
-          <ConversationStageInfo />
-        </div>
-        <div className="mt-6">
-          <ConversionActivity />
-        </div>
+        <ConversationStageInfo />
+        <ConversionActivity />
       </RightDrawer>
 
       {/* 用户认证对话框 */}

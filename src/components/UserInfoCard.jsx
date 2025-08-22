@@ -67,11 +67,11 @@ const UserInfoCard = () => {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
-      className="user-info-section"
+      className="user-info-section p-4 shadow-lg rounded-xl"
     >
       {/* 应用标题 */}
       <div className="sidebar-header mb-4">
-        <motion.h1 
+        <motion.h1
           className="text-2xl font-bold text-gray-800 mb-4"
           initial={{ scale: 0.9 }}
           animate={{ scale: 1 }}
@@ -79,9 +79,9 @@ const UserInfoCard = () => {
         >
           悠悠
         </motion.h1>
-        
+
         {/* 用户信息卡片 */}
-        <motion.div 
+        <motion.div
           className="user-info bg-white rounded-xl p-4 shadow-lg border border-gray-100"
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -120,13 +120,13 @@ const UserInfoCard = () => {
               whileTap={{ scale: ui.isSyncing ? 1 : 0.95 }}
               title="手动同步用户数据"
             >
-              <RefreshCw 
-                size={14} 
-                className={`mr-1 ${ui.isSyncing ? 'animate-spin' : ''}`} 
+              <RefreshCw
+                size={14}
+                className={`mr-1 ${ui.isSyncing ? 'animate-spin' : ''}`}
               />
               {ui.isSyncing ? '同步中' : '同步'}
             </motion.button>
-            
+
             <motion.button
               onClick={showSwitchUserDialog}
               className="switch-user-btn flex items-center justify-center px-3 py-2 rounded-lg text-sm font-medium bg-green-50 text-green-700 hover:bg-green-100 transition-all duration-200"
@@ -144,17 +144,17 @@ const UserInfoCard = () => {
             <span className="sync-time text-gray-500">
               {formatSyncTime()}
             </span>
-            <motion.span 
+            <motion.span
               className={`online-indicator w-2 h-2 rounded-full ${
                 session.isOffline ? 'bg-red-500' : 'bg-green-500'
               }`}
-              animate={{ 
+              animate={{
                 scale: session.isOffline ? [1, 1.2, 1] : 1,
                 opacity: session.isOffline ? [1, 0.5, 1] : 1
               }}
-              transition={{ 
-                duration: 2, 
-                repeat: session.isOffline ? Infinity : 0 
+              transition={{
+                duration: 2,
+                repeat: session.isOffline ? Infinity : 0
               }}
               title={session.isOffline ? '离线模式' : '在线'}
             />
@@ -163,7 +163,7 @@ const UserInfoCard = () => {
           {/* 同步状态消息 */}
           <AnimatePresence>
             {status.sync.message && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
@@ -182,7 +182,7 @@ const UserInfoCard = () => {
       </div>
 
       {/* 注销按钮 */}
-      <motion.div 
+      <motion.div
         className="logout-section"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

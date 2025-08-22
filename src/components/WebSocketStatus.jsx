@@ -43,7 +43,7 @@ const WebSocketStatus = () => {
   }
 
   return (
-    <div className="flex items-center justify-between p-3 bg-gray-800 rounded-lg border border-gray-700">
+    <div className="flex items-center justify-between p-3 bg-gray-800 border border-gray-700  m-4 shadow-lg rounded-xl">
       <div className="flex items-center space-x-2">
         <span className="text-lg">{getStatusIcon()}</span>
         <div>
@@ -53,7 +53,7 @@ const WebSocketStatus = () => {
           </div>
         </div>
       </div>
-      
+
       <div className="flex space-x-2">
         {connectionStatus === 'disconnected' && (
           <button

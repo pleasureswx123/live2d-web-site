@@ -23,7 +23,7 @@ const ConversationStage = () => {
   }
 
   return (
-    <div className="conversation-stage-sidebar">
+    <div className="conversation-stage-sidebar  p-4 shadow-lg rounded-xl">
       {/* 标题 */}
       <div className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
         💬 对话阶段

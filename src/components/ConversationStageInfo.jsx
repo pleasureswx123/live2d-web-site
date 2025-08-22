@@ -4,9 +4,9 @@ const ConversationStageInfo = () => {
   const { conversationStage } = useVoice()
 
   return (
-    <div className="activity-section">
+    <div className="activity-section  p-4 shadow-lg rounded-xl">
       <h4 className="flex items-center text-lg font-semibold text-gray-800 mb-4">
-        <div 
+        <div
           className="activity-section-icon w-8 h-8 rounded-lg flex items-center justify-center mr-3 text-sm"
           style={{ background: '#dcfce7', color: '#166534' }}
         >
@@ -22,14 +22,14 @@ const ConversationStageInfo = () => {
             {conversationStage.stage_name}
           </span>
         </div>
-        
+
         <div className="info-item flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg">
           <span className="info-label text-sm font-medium text-gray-600">对话轮数</span>
           <span className="info-value text-sm font-semibold text-gray-900">
             {conversationStage.turn_count}
           </span>
         </div>
-        
+
         <div className="info-item flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg">
           <span className="info-label text-sm font-medium text-gray-600">信息完成度</span>
           <span className="info-value text-sm font-semibold text-gray-900">

@@ -82,7 +82,7 @@ const SystemControl = () => {
   }
 
   return (
-    <div className="system-control">
+    <div className="system-control  p-4 shadow-lg rounded-xl">
       {/* 标题 */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center">

@@ -13,10 +13,10 @@ const ConversionActivity = () => {
   }
 
   return (
-    <div className="activity-section">
+    <div className="activity-section  p-4 shadow-lg rounded-xl">
       <h4 className="flex items-center justify-between text-lg font-semibold text-gray-800 mb-4">
         <div className="flex items-center">
-          <div 
+          <div
             className="activity-section-icon w-8 h-8 rounded-lg flex items-center justify-center mr-3 text-sm"
             style={{ background: '#e0e7ff', color: '#3730a3' }}
           >
@@ -43,8 +43,8 @@ const ConversionActivity = () => {
         ) : (
           <div className="space-y-3">
             {activities.map((activity) => (
-              <div 
-                key={activity.id} 
+              <div
+                key={activity.id}
                 className="memory-item bg-gray-50 rounded-lg p-3 border-l-4 border-blue-400"
               >
                 <div className="memory-type text-sm font-medium text-blue-700 mb-1">

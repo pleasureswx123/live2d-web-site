@@ -365,7 +365,7 @@ export default function Live2DViewer({
       )}
 
       {/* 模型信息 */}
-      {modelInfo && !isLoading && !error && (
+      {/*{modelInfo && !isLoading && !error && (
         <div
           style={{
             position: 'absolute',
@@ -384,7 +384,7 @@ export default function Live2DViewer({
           {'motions' in modelInfo && <div>动作: {modelInfo.motions.total}</div>}
           {'parameters' in modelInfo && <div>参数: {modelInfo.parameters.count}</div>}
         </div>
-      )}
+      )}*/}
     </div>
   )
 }
