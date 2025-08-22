@@ -109,6 +109,9 @@ export const useProactiveChatStore = create((set, get) => ({
       isProactiveChatEnabled: !state.isProactiveChatEnabled
     }))
   },
+  setProactiveChat: (enabled) => {
+    set({isProactiveChatEnabled: enabled})
+  },
 
   // 添加主动对话记录
   addProactiveChatRecord: (message) => {

@@ -273,8 +273,8 @@ const WorkingChatInterface = ({
 
     console.log('🎤 结束长按空格键ASR')
     setIsSpacePressed(false)
-    
-    const duration = spaceKeyStartTimeRef.current ? 
+
+    const duration = spaceKeyStartTimeRef.current ?
       Date.now() - spaceKeyStartTimeRef.current : 0
     spaceKeyStartTimeRef.current = null
 

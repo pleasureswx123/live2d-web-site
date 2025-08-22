@@ -14,7 +14,7 @@ const ProactiveChatControl = () => {
     isApplying,
     setSilenceTimeout,
     applySilenceTimeout,
-    toggleProactiveChat,
+    setProactiveChat,
     toggleDebugInfo,
     getStatusText,
     loadSilenceTimeout,
@@ -33,17 +33,18 @@ const ProactiveChatControl = () => {
     loadSilenceTimeout(currentUser?.id)
   }, [currentUser?.id])
 
-  useEffect(() => {
-    console.log(11111, isProactiveChatEnabled, wsRef);
-    if (isProactiveChatEnabled && wsRef && wsRef.readyState === WebSocket.OPEN) {
+  // 当 store 的 silenceTimeout 更新时同步到临时UI
+  useEffect(() => { setTempTimeout(silenceTimeout) }, [silenceTimeout])
+
+  const toggleProactive = () => {
+    if (!isProactiveChatEnabled && wsRef && wsRef.readyState === WebSocket.OPEN) {
       wsRef.send(JSON.stringify({
         type: 'audio_playback_complete',
         message: '音频播放完成'
       }));
     }
-  }, [isProactiveChatEnabled])
-  // 当 store 的 silenceTimeout 更新时同步到临时UI
-  useEffect(() => { setTempTimeout(silenceTimeout) }, [silenceTimeout])
+    setProactiveChat(!isProactiveChatEnabled)
+  }
 
   // 处理滑块变化
   const handleSliderChange = (e) => {
@@ -163,7 +164,7 @@ const ProactiveChatControl = () => {
       {/* 主动对话开关 */}
       <div className="proactive-toggle mt-4">
         <button
-          onClick={toggleProactiveChat}
+          onClick={toggleProactive}
           className={`w-full py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
             isProactiveChatEnabled
               ? 'bg-red-100 text-red-700 hover:bg-red-200'
