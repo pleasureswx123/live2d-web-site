@@ -1,17 +1,14 @@
-import { create } from 'zustand'
-
+import {create} from 'zustand'
 // 聊天消息状态管理store
 export const useChatMessagesStore = create((set, get) => ({
   // 消息数据
   messages: [],
-
   // 用户信息
   currentUser: {
     name: null,
     avatar: null,
     id: null
   },
-
   // UI状态
   ui: {
     isScrolledToBottom: true,
@@ -21,12 +18,11 @@ export const useChatMessagesStore = create((set, get) => ({
     isSearching: false,
     containerRef: null
   },
-
   // 配置
   config: {
     welcomeMessageTemplate: '你好{userName}！我是悠悠，一个18岁的动漫设计专业大一学妹～ 很高兴认识你！我对艺术创作和生活美学都很感兴趣，也喜欢和大家分享小众漫画和设计理念。有什么想聊的吗？',
     defaultWelcomeMessage: '你好！我是悠悠，刚上大一，学动漫设计的。平时喜欢画画，也关注一些有趣的事情。有什么想聊的吗？',
-    maxMessages: 1000,
+    maxMessages: 50,
     enableFileUpload: true,
     supportedFileTypes: ['image/*', '.pdf', '.txt', '.doc', '.docx'],
     maxFileSize: 10 * 1024 * 1024, // 10MB
@@ -36,7 +32,6 @@ export const useChatMessagesStore = create((set, get) => ({
       description: '动漫设计专业大一学妹'
     }
   },
-
   // 添加消息
   addMessage: (message) => {
     const newMessage = {
@@ -49,36 +44,28 @@ export const useChatMessagesStore = create((set, get) => ({
       status: message.status || 'sent',
       ...message
     }
-
     set((state) => {
       const newMessages = [...state.messages, newMessage]
-
       // 限制消息数量
       if (newMessages.length > state.config.maxMessages) {
         newMessages.splice(0, newMessages.length - state.config.maxMessages)
       }
-
-      return { messages: newMessages }
+      return {messages: newMessages}
     })
-
     // 自动滚动到底部
     if (get().ui.autoScroll) {
       setTimeout(() => get().scrollToBottom(), 100)
     }
-
     // 触发消息添加事件
     const event = new CustomEvent('messageAdded', {
-      detail: { message: newMessage }
+      detail: {message: newMessage}
     })
     window.dispatchEvent(event)
-
     return newMessage.id
   },
-
   // 添加用户消息
   addUserMessage: (text, file = null) => {
-    const { currentUser, formatMessageText } = get()
-
+    const {currentUser, formatMessageText} = get()
     const attachments = []
     if (file) {
       attachments.push({
@@ -90,7 +77,6 @@ export const useChatMessagesStore = create((set, get) => ({
         file: file
       })
     }
-
     const message = {
       type: 'user',
       content: formatMessageText(text),
@@ -102,14 +88,11 @@ export const useChatMessagesStore = create((set, get) => ({
       attachments,
       status: 'sent'
     }
-
     return get().addMessage(message)
   },
-
   // 添加机器人消息
   addBotMessage: (text) => {
-    const { config, formatMessageText } = get()
-
+    const {config, formatMessageText} = get()
     const message = {
       type: 'bot',
       content: formatMessageText(text),
@@ -120,10 +103,8 @@ export const useChatMessagesStore = create((set, get) => ({
       },
       status: 'sent'
     }
-
     return get().addMessage(message)
   },
-
   // 添加系统消息
   addSystemMessage: (text) => {
     const message = {
@@ -136,45 +117,39 @@ export const useChatMessagesStore = create((set, get) => ({
       },
       status: 'sent'
     }
-
     return get().addMessage(message)
   },
-
   // 更新消息状态
   updateMessageStatus: (messageId, status) => {
     set((state) => ({
       messages: state.messages.map(msg =>
-        msg.id === messageId ? { ...msg, status } : msg
+        msg.id === messageId ? {...msg, status} : msg
       )
     }))
   },
-
   // 更新消息内容
   updateMessageContent: (messageId, content) => {
     set((state) => ({
       messages: state.messages.map(msg =>
-        msg.id === messageId ? { ...msg, content: get().formatMessageText(content) } : msg
+        msg.id === messageId ? {...msg, content: get().formatMessageText(content)} : msg
       )
     }))
   },
-
   // 删除消息
   deleteMessage: (messageId) => {
     set((state) => ({
       messages: state.messages.filter(msg => msg.id !== messageId)
     }))
-
     // 触发消息删除事件
     const event = new CustomEvent('messageDeleted', {
-      detail: { messageId }
+      detail: {messageId}
     })
     window.dispatchEvent(event)
   },
-
   // 清空消息
   clearMessages: () => {
     // 清理附件URL
-    const { messages } = get()
+    const {messages} = get()
     messages.forEach(message => {
       message.attachments?.forEach(attachment => {
         if (attachment.url && attachment.url.startsWith('blob:')) {
@@ -182,32 +157,24 @@ export const useChatMessagesStore = create((set, get) => ({
         }
       })
     })
-
-    set({ messages: [] })
-
+    set({messages: []})
     // 触发消息清空事件
     const event = new CustomEvent('messagesCleared')
     window.dispatchEvent(event)
   },
-
   // 更新欢迎消息
   updateWelcomeMessage: () => {
-    const { currentUser, config, clearMessages, addBotMessage } = get()
-
+    const {currentUser, config, clearMessages, addBotMessage} = get()
     // 清空现有消息
     clearMessages()
-
     // 生成欢迎消息
     let welcomeMessage = config.defaultWelcomeMessage
-
     if (currentUser.name) {
       welcomeMessage = config.welcomeMessageTemplate.replace('{userName}', currentUser.name)
     }
-
     // 添加欢迎消息
     addBotMessage(welcomeMessage)
   },
-
   // 设置当前用户
   setCurrentUser: (user) => {
     set((state) => ({
@@ -216,29 +183,22 @@ export const useChatMessagesStore = create((set, get) => ({
         ...user
       }
     }))
-
     // 更新欢迎消息
     get().updateWelcomeMessage()
   },
-
   // 切换用户
   switchToUser: (user) => {
-    const { clearMessages, setCurrentUser } = get()
-
+    const {clearMessages, setCurrentUser} = get()
     // 清空聊天记录
     clearMessages()
-
     // 设置新用户
     setCurrentUser(user)
   },
-
   // 用户登出
   logoutUser: () => {
-    const { clearMessages } = get()
-
+    const {clearMessages} = get()
     // 清空聊天记录
     clearMessages()
-
     // 重置用户信息
     set({
       currentUser: {
@@ -248,11 +208,9 @@ export const useChatMessagesStore = create((set, get) => ({
       }
     })
   },
-
   // 格式化消息文本
   formatMessageText: (text) => {
     if (!text) return ''
-
     // 转义HTML
     let formattedText = text
       .replace(/&/g, '&amp;')
@@ -260,26 +218,19 @@ export const useChatMessagesStore = create((set, get) => ({
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;')
-
     // 处理换行
     formattedText = formattedText.replace(/\n/g, '<br>')
-
     // 处理代码块
     formattedText = formattedText.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-
     // 处理行内代码
     formattedText = formattedText.replace(/`([^`]+)`/g, '<code>$1</code>')
-
     return formattedText
   },
-
   // 显示搜索指示器
   showSearchIndicator: (query) => {
-    const { config } = get()
-
+    const {config} = get()
     // 移除现有的搜索指示器
     get().hideSearchIndicator()
-
     const searchMessage = {
       id: 'search-indicator',
       type: 'system',
@@ -292,7 +243,6 @@ export const useChatMessagesStore = create((set, get) => ({
       isSearchIndicator: true,
       status: 'sent'
     }
-
     set((state) => ({
       messages: [...state.messages, searchMessage],
       ui: {
@@ -301,11 +251,9 @@ export const useChatMessagesStore = create((set, get) => ({
         searchQuery: query
       }
     }))
-
     // 自动滚动
     setTimeout(() => get().scrollToBottom(), 100)
   },
-
   // 隐藏搜索指示器
   hideSearchIndicator: () => {
     set((state) => ({
@@ -317,14 +265,11 @@ export const useChatMessagesStore = create((set, get) => ({
       }
     }))
   },
-
   // 当前流式消息ID（用于WebSocket流式消息）
   currentStreamingMessageId: null,
-
   // 创建新的机器人消息
   createNewBotMessage: () => {
-    const { config } = get()
-
+    const {config} = get()
     const message = {
       type: 'bot',
       content: '',
@@ -336,14 +281,11 @@ export const useChatMessagesStore = create((set, get) => ({
       status: 'sending',
       isStreaming: true
     }
-
     return get().addMessage(message)
   },
-
   // 创建新的机器人消息框（WebSocket专用）
   createNewBotMessageForWebSocket: () => {
-    const { config } = get()
-
+    const {config} = get()
     const message = {
       type: 'bot',
       content: '',
@@ -355,27 +297,21 @@ export const useChatMessagesStore = create((set, get) => ({
       status: 'sending',
       isStreaming: true
     }
-
     const messageId = get().addMessage(message)
-
     // 设置当前流式消息ID
-    set({ currentStreamingMessageId: messageId })
-
+    set({currentStreamingMessageId: messageId})
     console.log('💬 创建新的机器人消息框，ID:', messageId)
     return messageId
   },
-
   // 追加到当前机器人消息（WebSocket专用）
   appendToBotMessage: (text) => {
-    const { currentStreamingMessageId, messages } = get()
-
+    const {currentStreamingMessageId, messages} = get()
     if (!currentStreamingMessageId) {
       // 如果没有当前消息，创建一个新的
       console.log('💬 没有当前流式消息，创建新的消息框')
       get().createNewBotMessageForWebSocket()
       return get().appendToBotMessage(text)
     }
-
     // 找到当前流式消息
     const currentMessage = messages.find(msg => msg.id === currentStreamingMessageId)
     if (!currentMessage) {
@@ -383,77 +319,62 @@ export const useChatMessagesStore = create((set, get) => ({
       get().createNewBotMessageForWebSocket()
       return get().appendToBotMessage(text)
     }
-
     // 追加文本到消息内容
     const newContent = currentMessage.content + text
-
     set((state) => ({
-      messages: state.messages.map(msg =>
-        msg.id === currentStreamingMessageId
-          ? { ...msg, content: newContent }
-          : msg
-      )
+      messages: state.messages.map(msg => msg.id === currentStreamingMessageId ? {...msg, content: newContent} : msg)
     }))
-
     // 自动滚动到底部
     if (get().ui.autoScroll) {
       setTimeout(() => get().scrollToBottom(), 10)
     }
-
     console.log('💬 追加文本到机器人消息:', text)
   },
-
   // 完成当前流式消息
   finishStreamingMessage: () => {
-    const { currentStreamingMessageId } = get()
-
+    const {currentStreamingMessageId} = get()
     if (currentStreamingMessageId) {
       set((state) => ({
-        messages: state.messages.map(msg =>
-          msg.id === currentStreamingMessageId
-            ? { ...msg, status: 'sent', isStreaming: false }
-            : msg
-        ),
+        messages: state.messages.map(msg => msg.id === currentStreamingMessageId ? {
+          ...msg,
+          status: 'sent',
+          isStreaming: false
+        } : msg),
         currentStreamingMessageId: null
       }))
-
       console.log('✅ 完成流式消息，ID:', currentStreamingMessageId)
     }
   },
-
-	  // 更新当前流式机器人消息的语音播放元信息（TTS容错/可视化）
-	  updateCurrentStreamingMessageMeta: (updates) => {
-	    const { currentStreamingMessageId } = get()
-	    if (!currentStreamingMessageId) return
-	    set((state) => ({
-	      messages: state.messages.map(msg =>
-	        msg.id === currentStreamingMessageId
-	          ? { ...msg, ttsMeta: { ...(msg.ttsMeta || {}), ...(updates || {}) } }
-	          : msg
-	      )
-	    }))
-	  },
-
-	  // 递增当前流式机器人消息的已接收音频片段计数
-	  incrementCurrentStreamingMessageTTSChunks: () => {
-	    const { currentStreamingMessageId } = get()
-	    if (!currentStreamingMessageId) return
-	    set((state) => ({
-	      messages: state.messages.map(msg =>
-	        msg.id === currentStreamingMessageId
-	          ? {
-	              ...msg,
-	              ttsMeta: {
-	                ...(msg.ttsMeta || {}),
-	                receivedChunks: ((msg.ttsMeta?.receivedChunks) || 0) + 1
-	              }
-	            }
-	          : msg
-	      )
-	    }))
-	  },
-
-
+  // 更新当前流式机器人消息的语音播放元信息（TTS容错/可视化）
+  updateCurrentStreamingMessageMeta: (updates) => {
+    const {currentStreamingMessageId} = get()
+    if (!currentStreamingMessageId) return
+    set((state) => ({
+      messages: state.messages.map(msg =>
+        msg.id === currentStreamingMessageId
+          ? {...msg, ttsMeta: {...(msg.ttsMeta || {}), ...(updates || {})}}
+          : msg
+      )
+    }))
+  },
+  // 递增当前流式机器人消息的已接收音频片段计数
+  incrementCurrentStreamingMessageTTSChunks: () => {
+    const {currentStreamingMessageId} = get()
+    if (!currentStreamingMessageId) return
+    set((state) => ({
+      messages: state.messages.map(msg =>
+        msg.id === currentStreamingMessageId
+          ? {
+            ...msg,
+            ttsMeta: {
+              ...(msg.ttsMeta || {}),
+              receivedChunks: ((msg.ttsMeta?.receivedChunks) || 0) + 1
+            }
+          }
+          : msg
+      )
+    }))
+  },
   // 更新UI状态
   updateUIState: (updates) => {
     set((state) => ({
@@ -463,7 +384,6 @@ export const useChatMessagesStore = create((set, get) => ({
       }
     }))
   },
-
   // 设置容器引用
   setContainerRef: (ref) => {
     set((state) => ({
@@ -473,12 +393,10 @@ export const useChatMessagesStore = create((set, get) => ({
       }
     }))
   },
-
   // 滚动到底部
   scrollToBottom: () => {
-    const { ui } = get()
+    const {ui} = get()
     const container = ui.containerRef?.current
-
     if (container) {
       container.scrollTo({
         top: container.scrollHeight,
@@ -486,15 +404,12 @@ export const useChatMessagesStore = create((set, get) => ({
       })
     }
   },
-
   // 检查是否滚动到底部
   checkScrollPosition: () => {
-    const { ui } = get()
+    const {ui} = get()
     const container = ui.containerRef?.current
-
     if (container) {
       const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50
-
       if (ui.isScrolledToBottom !== isAtBottom) {
         set((state) => ({
           ui: {
@@ -505,25 +420,20 @@ export const useChatMessagesStore = create((set, get) => ({
       }
     }
   },
-
   // 搜索消息
   searchMessages: (query) => {
-    const { messages } = get()
-
+    const {messages} = get()
     if (!query.trim()) {
       return messages
     }
-
     return messages.filter(message =>
       message.content.toLowerCase().includes(query.toLowerCase()) ||
       message.user.name.toLowerCase().includes(query.toLowerCase())
     )
   },
-
   // 获取消息统计
   getMessageStats: () => {
-    const { messages } = get()
-
+    const {messages} = get()
     return {
       total: messages.length,
       user: messages.filter(m => m.type === 'user').length,
@@ -532,11 +442,9 @@ export const useChatMessagesStore = create((set, get) => ({
       withAttachments: messages.filter(m => m.attachments?.length > 0).length
     }
   },
-
   // 导出消息
   exportMessages: (format = 'json') => {
-    const { messages } = get()
-
+    const {messages} = get()
     switch (format) {
       case 'json':
         return JSON.stringify(messages, null, 2)
@@ -548,7 +456,6 @@ export const useChatMessagesStore = create((set, get) => ({
         return messages
     }
   },
-
   // 更新配置
   updateConfig: (updates) => {
     set((state) => ({
@@ -558,13 +465,10 @@ export const useChatMessagesStore = create((set, get) => ({
       }
     }))
   },
-
   // 重置所有状态
   reset: () => {
-    const { clearMessages } = get()
-
+    const {clearMessages} = get()
     clearMessages()
-
     set({
       currentUser: {
         name: null,
@@ -582,5 +486,4 @@ export const useChatMessagesStore = create((set, get) => ({
     })
   }
 }))
-
 export default useChatMessagesStore
