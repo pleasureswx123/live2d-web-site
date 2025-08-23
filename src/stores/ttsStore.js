@@ -2,224 +2,7 @@ import {create} from 'zustand'
 import {useProactiveChatStore} from './proactiveChatStore'
 
 // TTS音频播放状态管理store
-export const useTTSStore = create((set, get) => {
-  // 音频播放管理器状态
-  let audioContext = null
-  let isUnlocked = false
-  let pendingAudio = []
-
-  // 最小化优化：简单的URL清理跟踪
-  const activeAudioUrls = new Set()
-
-  const userInteractionEvents = ['click', 'touchstart', 'keydown', 'mousedown']
-
-  // 初始化音频播放管理器
-  const initAudioManager = () => {
-    setupUserInteractionListeners()
-    detectAutoplaySupport()
-  }
-
-  // 设置用户交互监听器
-  const setupUserInteractionListeners = () => {
-    const handleUserInteraction = () => {
-      unlockAudio()
-    }
-    userInteractionEvents.forEach(event => {
-      document.addEventListener(event, handleUserInteraction, {
-        once: true,
-        passive: true
-      })
-    })
-  }
-
-  // 检测自动播放支持
-  const detectAutoplaySupport = async () => {
-    try {
-      const audio = new Audio()
-      audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT'
-      audio.volume = 0.01
-      audio.muted = true
-      await audio.play()
-      isUnlocked = true
-      console.log('✅ 自动播放可用')
-    } catch (error) {
-      console.log('🔒 自动播放被限制，等待用户交互')
-    }
-  }
-
-  // 解锁音频播放
-  const unlockAudio = async () => {
-    if (isUnlocked) return true
-    try {
-      // 创建或恢复音频上下文
-      if (!audioContext) {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)()
-      }
-      if (audioContext.state === 'suspended') {
-        await audioContext.resume()
-      }
-      // 播放静音音频解锁
-      const buffer = audioContext.createBuffer(1, 1, 22050)
-      const source = audioContext.createBufferSource()
-      source.buffer = buffer
-      source.connect(audioContext.destination)
-      source.start(0)
-      isUnlocked = true
-      console.log('🎵 音频播放已解锁')
-      // 处理待播放音频
-      processPendingAudio()
-      return true
-    } catch (error) {
-      console.error('❌ 音频解锁失败:', error)
-      return false
-    }
-  }
-
-  // 处理待播放音频
-  const processPendingAudio = () => {
-    if (pendingAudio.length > 0) {
-      console.log(`🎵 处理 ${pendingAudio.length} 个待播放音频`)
-      pendingAudio.forEach(({audio, resolve, reject}) => {
-        audio.play().then(resolve).catch(reject)
-      })
-      pendingAudio = []
-    }
-  }
-
-  // 播放音频（主要方法）
-  const playAudio = async (audio) => {
-    if (isUnlocked) {
-      try {
-        await audio.play()
-        return true
-      } catch (error) {
-        console.error('音频播放失败:', error)
-        throw error
-      }
-    } else {
-      // 尝试解锁
-      const unlocked = await unlockAudio()
-      if (unlocked) {
-        try {
-          await audio.play()
-          return true
-        } catch (error) {
-          console.error('解锁后音频播放失败:', error)
-          throw error
-        }
-      } else {
-        // 加入待播放队列
-        return new Promise((resolve, reject) => {
-          pendingAudio.push({audio, resolve, reject})
-          console.log('🎵 音频已加入待播放队列')
-        })
-      }
-    }
-  }
-
-  // 从Base64创建并播放音频（保持原始逻辑，只添加URL跟踪）
-  const playAudioFromBase64 = async (base64Data, format = 'mp3', volume = 0.8) => {
-    try {
-      // 解码Base64
-      const binaryString = atob(base64Data)
-      const bytes = new Uint8Array(binaryString.length)
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i)
-      }
-
-      // 创建Blob和URL
-      const blob = new Blob([bytes], {type: `audio/${format}`})
-      const audioUrl = URL.createObjectURL(blob)
-
-      // 跟踪URL以便清理
-      activeAudioUrls.add(audioUrl)
-
-      // 创建音频元素
-      const audio = new Audio(audioUrl)
-      audio.volume = volume
-
-      // 设置清理函数
-      const cleanup = () => {
-        if (activeAudioUrls.has(audioUrl)) {
-          URL.revokeObjectURL(audioUrl)
-          activeAudioUrls.delete(audioUrl)
-        }
-      }
-
-      audio.addEventListener('ended', cleanup)
-      audio.addEventListener('error', cleanup)
-
-      // 播放音频
-      await playAudio(audio)
-      return audio
-    } catch (error) {
-      console.error('Base64音频播放失败:', error)
-      throw error
-    }
-  }
-
-  // 清理所有资源
-  const cleanupAllResources = () => {
-    console.log('🧹 开始兜底清理所有音频资源...')
-
-    // 1. 清理所有活跃的URL
-    activeAudioUrls.forEach(url => {
-      URL.revokeObjectURL(url)
-    })
-    activeAudioUrls.clear()
-
-    // 2. 清理待播放队列
-    pendingAudio.length = 0
-
-    // 3. 清理音频状态（兜底清理）
-    const {audio} = get()
-    if (audio.currentAudio) {
-      audio.currentAudio.pause()
-      audio.currentAudio.currentTime = 0
-      audio.currentAudio.src = ''
-      audio.currentAudio.load()
-    }
-
-    // 4. 清理所有音频元素
-    audio.audioElements.forEach((audioElement) => {
-      if (audioElement) {
-        audioElement.pause()
-        audioElement.currentTime = 0
-        audioElement.src = ''
-        audioElement.load()
-        // 移除事件监听器
-        audioElement.onended = null
-        audioElement.onerror = null
-        audioElement.onload = null
-      }
-    })
-
-    // 5. 停止Live2D嘴部同步
-    if (window.__stopLipSync) {
-      window.__stopLipSync()
-    }
-
-    // 6. 重置音频状态（为下一轮对话做准备）
-    set((state) => ({
-      audio: {
-        ...state.audio,
-        currentAudio: null,
-        audioElements: [],
-        audioQueue: [],
-        orderedAudioBuffer: new Map(),
-        expectedOrder: 1,
-        isPlayingQueue: false,
-        isTTSGenerationComplete: false
-      }
-    }))
-
-    console.log('🧹 兜底清理完成，准备下一轮对话')
-  }
-
-  // 初始化音频管理器
-  initAudioManager()
-
-  return {
+export const useTTSStore = create((set, get) => ({
     // 音频播放状态
     audio: {
       isPlaying: false,
@@ -447,8 +230,66 @@ export const useTTSStore = create((set, get) => {
         // 停止当前播放的音频
         stopCurrentAudio()
 
-        // 使用原始的音频播放功能
-        const audio = await playAudioFromBase64(audioBase64, format, 0.8)
+        // 解码Base64
+        const binaryString = atob(audioBase64)
+        const bytes = new Uint8Array(binaryString.length)
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i)
+        }
+
+        // 创建Blob和URL
+        const blob = new Blob([bytes], {type: `audio/${format}`})
+        const audioUrl = URL.createObjectURL(blob)
+
+        // 创建音频元素
+        const audio = new Audio(audioUrl)
+        audio.volume = 0.8
+
+
+        // 设置事件监听器
+        audio.onloadstart = () => console.log('音频开始加载...')
+        audio.oncanplay = () => console.log('音频可以播放，开始播放...')
+        audio.onplay = () => {
+          console.log('音频开始播放')
+          // 启动Live2D嘴部同步
+          if (window.__startLipSyncForAudio) {
+            try {
+              window.__startLipSyncForAudio(audio)
+            } catch (error) {
+              console.warn('⚠️ 嘴部同步启动失败:', error)
+            }
+          }
+        }
+
+        const playEnded = () => {
+          URL.revokeObjectURL(audioUrl)
+          set((state) => ({
+            audio: {
+              ...state.audio,
+              isPlaying: false,
+              currentAudio: null,
+              audioElements: state.audio.audioElements.filter(el => el !== audio)
+            }
+          }))
+          // 停止Live2D嘴部同步
+          if (window.__stopLipSync) {
+            window.__stopLipSync()
+          }
+          // 调用完成回调
+          if (onComplete) {
+            onComplete()
+          }
+        }
+
+        audio.onended = () => {
+          console.log('✅ 音频播放成功')
+          playEnded();
+        }
+
+        audio.onerror = (e) => {
+          console.error('音频播放错误:', e)
+          playEnded();
+        }
 
         // 设置为当前音频
         set((state) => ({
@@ -459,53 +300,19 @@ export const useTTSStore = create((set, get) => {
           }
         }))
 
-        // 启动Live2D嘴部同步
-        if (window.__startLipSyncForAudio) {
-          try {
-            window.__startLipSyncForAudio(audio)
-          } catch (error) {
-            console.warn('⚠️ 嘴部同步启动失败:', error)
-          }
-        }
+        // 尝试播放音频
+        try {
+          await audio.play()
+        } catch (error) {
+          console.error('播放音频失败:', error)
 
-        // 创建音频结束处理函数
-        const handleAudioEnd = (isError = false, error = null) => {
-          if (isError) {
-            console.error('音频播放错误:', error)
+          if (error.name === 'NotAllowedError') {
+            console.log('浏览器阻止了自动播放，需要用户交互后才能播放')
+            get().showAudioPlayButton(audioUrl)
           } else {
-            console.log('音频播放完成')
-          }
-
-          // 停止Live2D嘴部同步
-          if (window.__stopLipSync) {
-            window.__stopLipSync()
-          }
-
-          // 清理音频状态
-          set((state) => {
-            const currentAudioElements = state.audio.audioElements.filter(el => el !== audio)
-            const newCurrentAudio = state.audio.currentAudio === audio ? null : state.audio.currentAudio
-
-            return {
-              audio: {
-                ...state.audio,
-                audioElements: currentAudioElements,
-                currentAudio: newCurrentAudio
-              }
-            }
-          })
-
-          // 调用完成回调
-          if (onComplete) {
-            onComplete()
+            throw error
           }
         }
-
-        // 设置事件监听器
-        audio.onended = () => handleAudioEnd(false)
-        audio.onerror = (e) => handleAudioEnd(true, e)
-
-        console.log('✅ 音频播放成功')
 
       } catch (error) {
         console.error('处理TTS音频数据失败:', error)
@@ -513,6 +320,15 @@ export const useTTSStore = create((set, get) => {
           onComplete()
         }
       }
+    },
+
+    // 显示音频播放按钮（用于处理自动播放限制）
+    showAudioPlayButton: (audioUrl) => {
+      // 触发显示播放按钮事件
+      const event = new CustomEvent('showAudioPlayButton', {
+        detail: { audioUrl }
+      })
+      window.dispatchEvent(event)
     },
 
     // 主要的音频播放函数（用于单独播放）
@@ -633,7 +449,7 @@ export const useTTSStore = create((set, get) => {
         const {isProactiveChatEnabled} = useProactiveChatStore.getState();
         console.log('✅ 所有音频播放完成', isProactiveChatEnabled)
 
-        cleanupAllResources();
+        get().cleanupAllResources();
 
         // 可以在这里添加完成回调
         if (wsRef && wsRef.readyState === WebSocket.OPEN && !!isProactiveChatEnabled) {
@@ -727,6 +543,51 @@ export const useTTSStore = create((set, get) => {
       }
     },
 
+    cleanupAllResources: () => {
+      // 1. 清理音频状态（兜底清理）
+      const {audio} = get()
+      if (audio.currentAudio) {
+        audio.currentAudio.pause()
+        audio.currentAudio.currentTime = 0
+        audio.currentAudio.src = ''
+        audio.currentAudio.load()
+      }
+
+      // 2. 清理所有音频元素
+      audio.audioElements.forEach((audioElement) => {
+        if (audioElement) {
+          audioElement.pause()
+          audioElement.currentTime = 0
+          audioElement.src = ''
+          audioElement.load()
+          // 移除事件监听器
+          audioElement.onended = null
+          audioElement.onerror = null
+          audioElement.onload = null
+        }
+      })
+
+      // 3. 停止Live2D嘴部同步
+      if (window.__stopLipSync) {
+        window.__stopLipSync()
+      }
+
+      // 4. 重置音频状态（为下一轮对话做准备）
+      set((state) => ({
+        audio: {
+          ...state.audio,
+          currentAudio: null,
+          audioElements: [],
+          audioQueue: [],
+          orderedAudioBuffer: new Map(),
+          expectedOrder: 1,
+          isPlayingQueue: false,
+          isTTSGenerationComplete: false
+        }
+      }))
+
+      console.log('🧹 兜底清理完成，准备下一轮对话')
+    },
     // TTS完成处理
     onTTSComplete: () => {
       const {audio} = get()
@@ -769,5 +630,4 @@ export const useTTSStore = create((set, get) => {
       // 检查是否所有音频都播放完成
       get().checkAllAudioPlaybackComplete()
     }
-  }
-})
+}))

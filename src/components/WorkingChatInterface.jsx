@@ -32,8 +32,6 @@ const WorkingChatInterface = ({
   const [message, setMessage] = useState('')
   const [isComposing, setIsComposing] = useState(false)
   const [isSending, setIsSending] = useState(false)
-  // ASR状态监控
-  const asrStateRef = useRef({ isProcessing: false })
   // 使用 ref 来获取最新的 message 值
   const messageRef = useRef('')
 

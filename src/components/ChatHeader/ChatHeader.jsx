@@ -9,7 +9,7 @@ import { Badge } from '../ui/badge'
 
 /**
  * 聊天头部组件
- * 
+ *
  * @param {Object} props - 组件属性
  * @param {string} props.className - 额外的CSS类名
  * @param {string} props.variant - 样式变体 ('default' | 'compact' | 'minimal')
@@ -110,121 +110,119 @@ const ChatHeader = ({
   return (
     <div
       className={cn(
-        'chat-header bg-background border-b border-border',
+        'chat-header bg-background border-b border-border space-y-2',
         getVariantClass(),
         className
       )}
       {...props}
     >
-      <div className="flex items-center justify-between">
-        {/* 左侧：角色信息 */}
-        <div className="flex items-center space-x-3">
-          {/* 角色头像 */}
-          {showAvatar && (
-            <div className="relative">
-              <Avatar
-                className={cn(
-                  'cursor-pointer transition-transform hover:scale-105',
-                  variant === 'compact' ? 'w-8 h-8' : 
+      <div className="flex items-center space-x-3">
+        {/* 角色头像 */}
+        {showAvatar && (
+          <div className="relative">
+            <Avatar
+              className={cn(
+                'cursor-pointer transition-transform hover:scale-105',
+                variant === 'compact' ? 'w-8 h-8' :
                   variant === 'minimal' ? 'w-6 h-6' : 'w-10 h-10'
-                )}
-                onClick={handleCharacterClick}
-              >
-                <AvatarImage src={character.avatar} alt={character.name} />
-                <AvatarFallback className="font-medium">
-                  {character.name?.[0]?.toUpperCase() || '悠'}
-                </AvatarFallback>
-              </Avatar>
-              
-              {/* 状态指示器 */}
-              <div
-                className={cn(
-                  'absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background',
-                  getStatusColor()
-                )}
-                title={getStatusText()}
-              />
-            </div>
-          )}
-
-          {/* 角色名称和信息 */}
-          <div className="flex flex-col">
-            <div className="flex items-center space-x-2">
-              <h2
-                className={cn(
-                  'font-semibold text-foreground cursor-pointer hover:text-primary transition-colors',
-                  variant === 'compact' ? 'text-base' :
-                  variant === 'minimal' ? 'text-sm' : 'text-lg'
-                )}
-                onClick={handleCharacterClick}
-                title="点击查看角色详情"
-              >
-                {character.name}
-              </h2>
-              
-              {/* 状态徽章 */}
-              {character.status !== 'online' && (
-                <Badge
-                  variant="secondary"
-                  className={cn(
-                    'text-xs',
-                    character.status === 'thinking' && 'bg-blue-100 text-blue-700',
-                    character.status === 'speaking' && 'bg-green-100 text-green-700'
-                  )}
-                >
-                  {getStatusText()}
-                </Badge>
               )}
-            </div>
+              onClick={handleCharacterClick}
+            >
+              <AvatarImage src={character.avatar} alt={character.name}/>
+              <AvatarFallback className="font-medium">
+                {character.name?.[0]?.toUpperCase() || '悠'}
+              </AvatarFallback>
+            </Avatar>
 
-            {/* 模型信息 */}
-            {finalShowModelInfo && (
-              <div className="flex items-center space-x-2">
-                <span
-                  className={cn(
-                    'text-muted-foreground cursor-pointer hover:text-foreground transition-colors',
-                    variant === 'minimal' ? 'text-xs' : 'text-sm'
-                  )}
-                  onClick={handleModelClick}
-                  title="点击查看模型详情"
-                >
-                  {character.model}
-                </span>
-                
-                {/* 思考指示器 */}
-                {finalShowThinkingIndicator && (
-                  <ThinkingIndicator
-                    variant={variant === 'minimal' ? 'minimal' : 'compact'}
-                    clickable={true}
-                  />
+            {/* 状态指示器 */}
+            <div
+              className={cn(
+                'absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background',
+                getStatusColor()
+              )}
+              title={getStatusText()}
+            />
+          </div>
+        )}
+
+        {/* 角色名称和信息 */}
+        <div className="flex flex-col">
+          <div className="flex items-center space-x-2">
+            <h2
+              className={cn(
+                'font-semibold text-foreground cursor-pointer hover:text-primary transition-colors',
+                variant === 'compact' ? 'text-base' :
+                  variant === 'minimal' ? 'text-sm' : 'text-lg'
+              )}
+              onClick={handleCharacterClick}
+              title="点击查看角色详情"
+            >
+              {character.name}
+            </h2>
+
+            {/* 状态徽章 */}
+            {character.status !== 'online' && (
+              <Badge
+                variant="secondary"
+                className={cn(
+                  'text-xs',
+                  character.status === 'thinking' && 'bg-blue-100 text-blue-700',
+                  character.status === 'speaking' && 'bg-green-100 text-green-700'
                 )}
-              </div>
+              >
+                {getStatusText()}
+              </Badge>
             )}
           </div>
         </div>
+      </div>
 
-        {/* 右侧：控制按钮和播放器 */}
-        <div className="flex items-center space-x-2">
-          {/* 音频播放器 */}
-          {showAudioPlayer && (
-            <AudioPlayer
-              showControls={variant !== 'minimal'}
-              showVolume={variant === 'default'}
-              showSpeed={false}
-            />
-          )}
+      <div className="hidden flex items-center justify-between space-x-3">
+        {/* 模型信息 */}
+        {finalShowModelInfo && (
+          <div className="flex items-center space-x-2">
+              <span
+                className={cn(
+                  'text-muted-foreground cursor-pointer hover:text-foreground transition-colors',
+                  variant === 'minimal' ? 'text-xs' : 'text-sm'
+                )}
+                onClick={handleModelClick}
+                title="点击查看模型详情"
+              >
+                {character.model}
+              </span>
 
-          {/* 音频测试按钮 */}
-          {finalShowAudioTest && (
-            <AudioTestButton
-              variant="outline"
-              size={variant === 'minimal' ? 'sm' : 'default'}
-            />
-          )}
+            {/* 思考指示器 */}
+            {finalShowThinkingIndicator && (
+              <ThinkingIndicator
+                variant={variant === 'minimal' ? 'minimal' : 'compact'}
+                clickable={true}
+              />
+            )}
+          </div>
+        )}
+      </div>
 
-          {/* 自定义操作按钮 */}
-          {actions}
-        </div>
+      <div className="hidden flex items-center justify-between space-x-2">
+        {/* 音频播放器 */}
+        {showAudioPlayer && (
+          <AudioPlayer
+            showControls={variant !== 'minimal'}
+            showVolume={variant === 'default'}
+            showSpeed={false}
+          />
+        )}
+
+        {/* 音频测试按钮 */}
+        {finalShowAudioTest && (
+          <AudioTestButton
+            variant="outline"
+            size="sm"
+          >测试音频</AudioTestButton>
+        )}
+
+        {/* 自定义操作按钮 */}
+        {actions}
       </div>
 
       {/* 自定义内容 */}
@@ -236,5 +234,4 @@ const ChatHeader = ({
     </div>
   )
 }
-
 export default ChatHeader
