@@ -23,46 +23,39 @@ const WorkingChatInterface = ({
   enableASR = true,
   maxMessageLength = 1000,
   placeholder = "发送消息给悠悠...",
-  onError,
-  onNotification,
   ...props
 }) => {
   const { isSearchEnabled } = useSystemControlStore();
-  // 状态管理
-  const [message, setMessage] = useState('')
-  const [isComposing, setIsComposing] = useState(false)
-  const [isSending, setIsSending] = useState(false)
-  // 使用 ref 来获取最新的 message 值
-  const messageRef = useRef('')
-
-  // Refs
-  const textareaRef = useRef(null)
-  const chatContainerRef = useRef(null)
 
   // WebSocket和Stores
-  const { sendMessage, connectionStatus, wsRef } = useWebSocket()
-  const {
-    messages,
-    addUserMessage,
-    scrollToBottom,
-    showSearchIndicator
-  } = useChatMessagesStore()
-
-  const {
-    files,
-    ui: fileUI,
-    selectFile,
-    removeFile,
-    startUpload
-  } = useFileUploadStore()
+  const { sendMessage, connectionStatus } = useWebSocket()
+  const {messages, addUserMessage, scrollToBottom, showSearchIndicator} = useChatMessagesStore()
+  const {files, ui: fileUI, selectFile, removeFile, startUpload} = useFileUploadStore()
   const {
     status: recording,
     recognition,
     connection: asrConnection,
+    textarea,
+    spaceKey,
     startSpaceKeyASR,
     stopSpaceKeyASR,
-    updateConnectionFromContext
+    setIsComposing,
+    setIsSending,
+    clearMessage,
+    getCurrentMessage,
+    setTextareaRef,
+    autoResizeTextarea,
+    handleInputChange,
+    startSpaceKeyPress,
+    endSpaceKeyPress,
+    canStartASR,
+    getIsConnected
   } = useASRStore()
+
+  // 稳定的ref回调函数
+  const textareaRefCallback = useCallback((ref) => {
+    setTextareaRef(ref)
+  }, [setTextareaRef])
 
   // 获取当前选中的文件
   const selectedFile = files.current
@@ -91,25 +84,9 @@ const WorkingChatInterface = ({
     window.dispatchEvent(new CustomEvent('clearAudioQueue'))
   }
 
-  // 自动调整textarea高度
-  const autoResizeTextarea = () => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px'
-    }
-  }
-
-  // 处理输入变化
-  const handleInputChange = (e) => {
-    const newValue = e.target.value
-    setMessage(newValue)
-    messageRef.current = newValue // 同步更新 ref
-    autoResizeTextarea()
-  }
-
   // 处理键盘事件
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
+    if (e.key === 'Enter' && !e.shiftKey && !textarea.isComposing) {
       e.preventDefault()
       handleSendMessage()
     }
@@ -119,9 +96,6 @@ const WorkingChatInterface = ({
   const handleFileSelect = (file) => {
     console.log('📎 选择文件:', file.name)
     selectFile(file)
-    if (onNotification) {
-      onNotification(`已选择文件: ${file.name}`, 'info')
-    }
   }
 
   // 处理文件上传
@@ -157,15 +131,14 @@ const WorkingChatInterface = ({
       }
     } catch (error) {
       console.error('❌ 文件上传失败:', error)
-      if (onError) onError('文件上传失败')
       throw error
     }
   }
 
   // 发送消息
   const handleSendMessage = useCallback(async () => {
-    // 使用 ref 获取最新的 message 值，避免闭包陷阱
-    const trimmedMessage = messageRef.current.trim()
+    // 使用 store 获取最新的 message 值，避免闭包陷阱
+    const trimmedMessage = getCurrentMessage().trim()
 
     // 验证消息内容
     if (!trimmedMessage && !selectedFile) {
@@ -173,8 +146,8 @@ const WorkingChatInterface = ({
     }
 
     // 检查连接状态
-    if (connectionStatus !== 'connected') {
-      if (onError) onError('连接已断开，请等待重连...')
+    if (!getIsConnected()) {
+      console.error('聊天错误:', '连接已断开，请等待重连...')
       return
     }
 
@@ -198,6 +171,7 @@ const WorkingChatInterface = ({
 
       // 处理文件上传
       if (selectedFile) {
+        console.log('📎 处理文件上传:', selectedFile.file.name)
         try {
           const fileUrl = await handleFileUpload(selectedFile.file)
           if (fileUrl) {
@@ -218,7 +192,7 @@ const WorkingChatInterface = ({
       }
 
       // 清空输入
-      setMessage('')
+      clearMessage()
       if (selectedFile) {
         removeFile()
       }
@@ -226,63 +200,13 @@ const WorkingChatInterface = ({
 
       // 滚动到底部
       setTimeout(scrollToBottom, 100)
-
-      if (onNotification) {
-        onNotification('消息已发送', 'success')
-      }
-
+      console.log('✅ 消息已发送')
     } catch (error) {
       console.error('❌ 发送消息失败:', error)
-      if (onError) onError('发送消息失败')
     } finally {
       setIsSending(false)
     }
-  }, [selectedFile, connectionStatus, onError, onNotification, sendMessage, shouldTriggerSearch, showSearchIndicator, handleFileUpload, addUserMessage, removeFile, autoResizeTextarea, scrollToBottom, stopAllTTSAudio])
-
-  // 长按空格键ASR状态
-  const [isSpacePressed, setIsSpacePressed] = useState(false)
-  const spaceKeyStartTimeRef = useRef(null)
-
-  // 处理长按空格键ASR
-  const handleSpaceKeyDown = useCallback(() => {
-    if (isSpacePressed || recording.isSpaceKeyActive || isSending) {
-      return
-    }
-
-    console.log('🎤 开始长按空格键ASR')
-    setIsSpacePressed(true)
-    spaceKeyStartTimeRef.current = Date.now()
-
-    // 停止所有TTS音频
-    stopAllTTSAudio()
-
-    // 开始长按空格键ASR
-    startSpaceKeyASR()
-
-    if (onNotification) {
-      onNotification('正在录音，松开空格键结束', 'info')
-    }
-  }, [isSpacePressed, recording.isSpaceKeyActive, isSending, startSpaceKeyASR, onNotification])
-
-  const handleSpaceKeyUp = useCallback(() => {
-    if (!isSpacePressed) {
-      return
-    }
-
-    console.log('🎤 结束长按空格键ASR')
-    setIsSpacePressed(false)
-
-    const duration = spaceKeyStartTimeRef.current ?
-      Date.now() - spaceKeyStartTimeRef.current : 0
-    spaceKeyStartTimeRef.current = null
-
-    // 停止长按空格键ASR
-    stopSpaceKeyASR()
-
-    if (onNotification) {
-      onNotification(`录音完成 (${(duration / 1000).toFixed(1)}秒)`, 'success')
-    }
-  }, [isSpacePressed, stopSpaceKeyASR, onNotification])
+  }, [selectedFile, sendMessage, shouldTriggerSearch, showSearchIndicator, handleFileUpload, addUserMessage, removeFile, autoResizeTextarea, scrollToBottom, stopAllTTSAudio, getCurrentMessage, clearMessage, setIsSending])
 
   // 检查是否在输入框中
   const isInInputElement = () => {
@@ -307,7 +231,16 @@ const WorkingChatInterface = ({
         // 检查是否在输入框中
         if (!isInInputElement()) {
           event.preventDefault()
-          handleSpaceKeyDown()
+          // 开始长按空格键ASR
+          if (canStartASR()) {
+            console.log('🎤 开始长按空格键ASR')
+            startSpaceKeyPress()
+            // 停止所有TTS音频
+            stopAllTTSAudio();
+            // 开始长按空格键ASR
+            startSpaceKeyASR()
+            console.log('正在录音，松开空格键结束')
+          }
         }
       }
     }
@@ -317,7 +250,14 @@ const WorkingChatInterface = ({
         // 检查是否在输入框中
         if (!isInInputElement()) {
           event.preventDefault()
-          handleSpaceKeyUp()
+          // 结束长按空格键ASR
+          if (spaceKey.isPressed) {
+            console.log('🎤 结束长按空格键ASR')
+            const duration = endSpaceKeyPress()
+            // 停止长按空格键ASR
+            stopSpaceKeyASR()
+            console.log(`录音完成 (${(duration / 1000).toFixed(1)}秒)`, 'success')
+          }
         }
       }
     }
@@ -329,102 +269,29 @@ const WorkingChatInterface = ({
       document.removeEventListener('keydown', handleGlobalKeyDown)
       document.removeEventListener('keyup', handleGlobalKeyUp)
     }
-  }, [enableASR, asrConnection.isConnected, handleSpaceKeyDown, handleSpaceKeyUp])
+  }, [enableASR, asrConnection.isConnected, canStartASR, startSpaceKeyPress, startSpaceKeyASR, spaceKey.isPressed, endSpaceKeyPress, stopSpaceKeyASR])
 
-  // 同步WebSocket连接状态到ASR Store
+  // 监听ASR自动发送事件
   useEffect(() => {
-    if (updateConnectionFromContext) {
-      updateConnectionFromContext(wsRef, connectionStatus)
-    }
-  }, [connectionStatus, wsRef, updateConnectionFromContext])
-
-  // 监听ASR事件并集成到输入框
-  useEffect(() => {
-    // 实时输入更新（中间结果）
-    const handleASRInputUpdate = (event) => {
-      const { text, isFinal, mode } = event.detail
-      console.log('🎤 ASR实时更新:', text, 'isFinal:', isFinal, 'mode:', mode)
-
-      // 更新输入框内容
-      if (text && text.trim()) {
-        const trimmedText = text.trim()
-        setMessage(trimmedText)
-        messageRef.current = trimmedText // 同步更新 ref
-        setTimeout(autoResizeTextarea, 0)
-      }
+    const handleASRAutoSend = (event) => {
+      console.log('🎤 收到ASR自动发送事件:', event.detail)
+      setTimeout(() => {
+        handleSendMessage()
+      }, 100)
     }
 
-    // ASR完成事件（最终结果）
-    const handleASRComplete = (event) => {
-      const { finalText, mode, confidence, trigger } = event.detail
-      console.log('🎤 ASR完成:', finalText, 'mode:', mode, 'confidence:', confidence, 'trigger:', trigger)
-
-      const trimmed = (finalText || '').trim()
-      if (!trimmed) {
-        console.log('🎤 ASR完成但无效结果，finalText:', finalText)
-        return
-      }
-
-      // 更新输入框
-      setMessage(trimmed)
-      messageRef.current = trimmed // 同步更新 ref
-      setTimeout(autoResizeTextarea, 0)
-
-      if (mode === 'spacekey_final') {
-        // 空格键长按模式：自动发送
-        console.log('🎤 空格键模式自动发送:', trimmed)
-        setTimeout(() => {
-          handleSendMessage()
-        }, 100) // 延迟100ms确保输入框更新完成
-      } else {
-        // 其他模式：提示用户手动发送
-        if (onNotification) {
-          onNotification('语音识别完成，请确认内容后发送', 'info')
-        }
-      }
-    }
-
-    // ASR错误处理
-    const handleASRError = (event) => {
-      const { error } = event.detail
-      console.error('❌ ASR错误:', error)
-      if (onError) {
-        onError(`语音识别错误: ${error}`)
-      }
-    }
-
-    // ASR服务启动确认
-    const handleASRServerStarted = (event) => {
-      const { mode } = event.detail
-      console.log('🎤 服务器确认ASR已启动, mode:', mode)
-      if (onNotification) {
-        onNotification('语音识别服务已启动', 'success')
-      }
-    }
-
-    // 注册事件监听器
-    window.addEventListener('asrInputUpdate', handleASRInputUpdate)
-    window.addEventListener('asrComplete', handleASRComplete)
-    window.addEventListener('asrServerError', handleASRError)
-    window.addEventListener('asrServerStarted', handleASRServerStarted)
-
+    window.addEventListener('asrAutoSend', handleASRAutoSend)
+    
     return () => {
-      window.removeEventListener('asrInputUpdate', handleASRInputUpdate)
-      window.removeEventListener('asrComplete', handleASRComplete)
-      window.removeEventListener('asrServerError', handleASRError)
-      window.removeEventListener('asrServerStarted', handleASRServerStarted)
+      window.removeEventListener('asrAutoSend', handleASRAutoSend)
     }
-  }, [onError, onNotification, handleSendMessage])
+  }, [handleSendMessage])
 
   // 组件挂载时的初始化
   useEffect(() => {
     autoResizeTextarea()
-  }, [])
+  }, [autoResizeTextarea])
 
-  // 同步 message 状态到 ref
-  useEffect(() => {
-    messageRef.current = message
-  }, [message])
 
   // 监听消息变化，自动滚动
   useEffect(() => {
@@ -442,10 +309,7 @@ const WorkingChatInterface = ({
       </div>
 
       {/* 聊天消息区域 */}
-      <div
-        ref={chatContainerRef}
-        className="flex-1 overflow-hidden"
-      >
+      <div className="flex-1 overflow-hidden">
         <ChatMessages className="h-full" />
       </div>
 
@@ -468,13 +332,13 @@ const WorkingChatInterface = ({
           <div className="relative">
             {/* 主输入容器 */}
             <div className={`relative bg-white border rounded-xl shadow-sm transition-all duration-200 ${
-              recording.isSpaceKeyActive || isSpacePressed
+              recording.isSpaceKeyActive || spaceKey.isPressed
                 ? 'border-red-300 shadow-red-100'
                 : 'border-gray-200 hover:border-gray-300 focus-within:border-blue-500 focus-within:shadow-blue-100'
             }`}>
 
               {/* 录音状态覆盖层 */}
-              {(recording.isSpaceKeyActive || isSpacePressed) && (
+              {(recording.isSpaceKeyActive || spaceKey.isPressed) && (
                 <div className="absolute inset-0 bg-gradient-to-r from-red-50 to-pink-50 rounded-xl flex items-center justify-center z-20 backdrop-blur-sm">
                   <div className="flex items-center space-x-4 text-red-600">
                     {/* 动态波形 */}
@@ -514,10 +378,10 @@ const WorkingChatInterface = ({
                     <div className="relative group">
                       <FileUploadButton
                         onFileSelect={handleFileSelect}
-                        disabled={isSending || isUploading}
+                        disabled={textarea.isSending || isUploading}
                       >
                         <div className={`p-2 rounded-lg transition-all duration-200 ${
-                          isSending || isUploading
+                          textarea.isSending || isUploading
                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                             : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-800 cursor-pointer'
                         }`}>
@@ -534,7 +398,7 @@ const WorkingChatInterface = ({
                   {enableASR && (
                     <div className="relative group">
                       <div className={`p-2 rounded-lg transition-all duration-200 ${
-                        recording.isSpaceKeyActive || isSpacePressed
+                        recording.isSpaceKeyActive || spaceKey.isPressed
                           ? 'bg-red-100 text-red-600'
                           : asrConnection.isConnected
                           ? 'bg-green-50 text-green-600'
@@ -543,7 +407,7 @@ const WorkingChatInterface = ({
                         <Mic className="w-4 h-4" />
                       </div>
                       <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                        {recording.isSpaceKeyActive || isSpacePressed
+                        {recording.isSpaceKeyActive || spaceKey.isPressed
                           ? '正在录音'
                           : asrConnection.isConnected
                           ? '语音识别就绪'
@@ -557,8 +421,8 @@ const WorkingChatInterface = ({
                 {/* 主输入区域 */}
                 <div className="flex-1 relative">
                   <Textarea
-                    ref={textareaRef}
-                    value={message}
+                    ref={textareaRefCallback}
+                    value={textarea.message}
                     onChange={handleInputChange}
                     onKeyDown={handleKeyDown}
                     onCompositionStart={() => setIsComposing(true)}
@@ -567,13 +431,13 @@ const WorkingChatInterface = ({
                     maxLength={maxMessageLength}
                     rows={1}
                     className="w-full min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent focus:outline-none focus:ring-0 placeholder:text-gray-400 text-gray-900"
-                    disabled={isSending}
+                    disabled={textarea.isSending}
                   />
 
                   {/* 字符计数和识别结果 */}
                   <div className="absolute bottom-1 right-1 flex items-center space-x-2">
                     {/* 实时识别结果预览 */}
-                    {recognition.currentText && (recording.isSpaceKeyActive || isSpacePressed) && (
+                    {recognition.currentText && (recording.isSpaceKeyActive || spaceKey.isPressed) && (
                       <div className="px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded-md max-w-32 truncate">
                         {recognition.currentText}
                       </div>
@@ -581,13 +445,13 @@ const WorkingChatInterface = ({
 
                     {/* 字符计数 */}
                     <div className={`text-xs transition-colors ${
-                      message.length > maxMessageLength * 0.9
+                      textarea.message.length > maxMessageLength * 0.9
                         ? 'text-red-500'
-                        : message.length > maxMessageLength * 0.7
+                        : textarea.message.length > maxMessageLength * 0.7
                         ? 'text-orange-500'
                         : 'text-gray-400'
                     }`}>
-                      {message.length}/{maxMessageLength}
+                      {textarea.message.length}/{maxMessageLength}
                     </div>
                   </div>
                 </div>
@@ -596,21 +460,21 @@ const WorkingChatInterface = ({
                 <div className="relative group">
                   <Button
                     onClick={handleSendMessage}
-                    disabled={(!message.trim() && !selectedFile) || isSending || connectionStatus !== 'connected'}
+                    disabled={(!textarea.message.trim() && !selectedFile) || textarea.isSending || connectionStatus !== 'connected'}
                     className={`p-2.5 rounded-lg transition-all duration-200 transform hover:scale-105 active:scale-95 ${
-                      (!message.trim() && !selectedFile) || isSending || connectionStatus !== 'connected'
+                      (!textarea.message.trim() && !selectedFile) || textarea.isSending || connectionStatus !== 'connected'
                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed hover:scale-100'
                         : 'bg-blue-500 text-white hover:bg-blue-600 shadow-sm hover:shadow-md'
                     }`}
                   >
-                    {isSending ? (
+                    {textarea.isSending ? (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ) : (
                       <Send className="w-4 h-4" />
                     )}
                   </Button>
                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                    {isSending ? '发送中...' : '发送消息'}
+                    {textarea.isSending ? '发送中...' : '发送消息'}
                   </div>
                 </div>
               </div>
@@ -649,20 +513,20 @@ const WorkingChatInterface = ({
                 {enableASR && (
                   <div className="flex items-center space-x-1.5">
                     <div className={`w-2 h-2 rounded-full ${
-                      recording.isSpaceKeyActive || isSpacePressed
+                      recording.isSpaceKeyActive || spaceKey.isPressed
                         ? 'bg-red-500 animate-pulse'
                         : asrConnection.isConnected
                         ? 'bg-green-500'
                         : 'bg-gray-400'
                     }`} />
                     <span className={`${
-                      recording.isSpaceKeyActive || isSpacePressed
+                      recording.isSpaceKeyActive || spaceKey.isPressed
                         ? 'text-red-600'
                         : asrConnection.isConnected
                         ? 'text-green-600'
                         : 'text-gray-500'
                     }`}>
-                      {recording.isSpaceKeyActive || isSpacePressed
+                      {recording.isSpaceKeyActive || spaceKey.isPressed
                         ? '录音中'
                         : asrConnection.isConnected
                         ? '语音就绪'

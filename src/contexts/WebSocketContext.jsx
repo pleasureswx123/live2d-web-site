@@ -153,7 +153,7 @@ export const WebSocketProvider = ({ children }) => {
 
   // 处理 WebSocket 消息
   const handleWebSocketMessage = (data) => {
-    console.log('📥 收到WebSocket消息:', data.type, data)
+    // console.log('📥 收到WebSocket消息:', data.type, data)
 
     switch (data.type) {
       case 'init_success':
@@ -363,10 +363,6 @@ export const WebSocketProvider = ({ children }) => {
         break
     }
   }
-
-
-
-
 
   // 占位函数 - 这些函数需要根据实际的聊天组件来实现
   const stopProactiveChatTimer = () => {

@@ -44,6 +44,132 @@ export const useASRStore = create((set, get) => ({
     silenceTimeout: 2000 // 2秒静音超时
   },
   // ===================
+  // 新增：textarea状态管理
+  // ===================
+  // textarea状态
+  textarea: {
+    message: '',
+    isComposing: false,
+    isSending: false,
+    maxLength: 1000,
+    textareaRef: null // textarea的ref引用
+  },
+  // 空格键状态
+  spaceKey: {
+    isPressed: false,
+    startTime: null,
+    duration: 0
+  },
+  // ===================
+  // textarea相关方法
+  // ===================
+  // 设置消息内容
+  setMessage: (message) => {
+    set((state) => ({
+      textarea: {
+        ...state.textarea,
+        message
+      }
+    }))
+  },
+  // 设置输入法组合状态
+  setIsComposing: (isComposing) => {
+    set((state) => ({
+      textarea: {
+        ...state.textarea,
+        isComposing
+      }
+    }))
+  },
+  // 设置发送状态
+  setIsSending: (isSending) => {
+    set((state) => ({
+      textarea: {
+        ...state.textarea,
+        isSending
+      }
+    }))
+  },
+  // 清空消息
+  clearMessage: () => {
+    set((state) => ({
+      textarea: {
+        ...state.textarea,
+        message: ''
+      }
+    }))
+  },
+  // 获取当前消息
+  getCurrentMessage: () => {
+    return get().textarea.message
+  },
+  // 设置textarea引用
+  setTextareaRef: (ref) => {
+    set((state) => ({
+      textarea: {
+        ...state.textarea,
+        textareaRef: ref
+      }
+    }))
+  },
+  // 获取textarea引用
+  getTextareaRef: () => {
+    return get().textarea.textareaRef
+  },
+  // 自动调整textarea高度
+  autoResizeTextarea: () => {
+    const textareaRef = get().textarea.textareaRef
+    if (textareaRef && textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px'
+    }
+  },
+  // 处理输入变化
+  handleInputChange: (e) => {
+    const newValue = e.target.value
+    get().setMessage(newValue)
+    get().autoResizeTextarea()
+  },
+  // ===================
+  // 空格键相关方法
+  // ===================
+  // 开始空格键按下
+  startSpaceKeyPress: () => {
+    const startTime = Date.now()
+    set((state) => ({
+      spaceKey: {
+        ...state.spaceKey,
+        isPressed: true,
+        startTime,
+        duration: 0
+      }
+    }))
+    console.log('🎤 空格键按下开始:', startTime)
+  },
+  // 结束空格键按下
+  endSpaceKeyPress: () => {
+    const { spaceKey } = get()
+    const duration = spaceKey.startTime ? Date.now() - spaceKey.startTime : 0
+
+    set((state) => ({
+      spaceKey: {
+        ...state.spaceKey,
+        isPressed: false,
+        duration,
+        startTime: null
+      }
+    }))
+    console.log('🎤 空格键按下结束，持续时间:', duration)
+    return duration
+  },
+  // 检查是否可以开始ASR
+  canStartASR: () => {
+    const { status, textarea, spaceKey } = get()
+    return !spaceKey.isPressed &&
+           !status.isSpaceKeyActive &&
+           !textarea.isSending
+  },
+  // ===================
   // 核心方法
   // ===================
   // 设置WebSocket连接
@@ -72,6 +198,10 @@ export const useASRStore = create((set, get) => ({
     }))
     console.log('🔌 ASR连接状态更新:', connectionStatus, 'ws:', !!ws)
   },
+  // 一个获取 connection的isConnected的 方法
+  getIsConnected: () => {
+    return get().connection.isConnected
+  },
   // ===================
   // 长按空格键ASR
   // ===================
@@ -83,9 +213,6 @@ export const useASRStore = create((set, get) => ({
       return
     }
     console.log('🎤 开始长按空格键ASR')
-    // 停止所有TTS音频
-    window.dispatchEvent(new CustomEvent('stopAllTTS'))
-    window.dispatchEvent(new CustomEvent('clearAudioQueue'))
     try {
       // 更新状态
       set((state) => ({
@@ -276,13 +403,6 @@ export const useASRStore = create((set, get) => ({
         serverConfirmed: true
       }
     }))
-    // 触发启动事件
-    window.dispatchEvent(new CustomEvent('asrServerStarted', {
-      detail: {
-        timestamp: Date.now(),
-        mode: get().status.mode
-      }
-    }))
   },
   // ASR结果处理（来自服务器）
   onASRResult: (text, isFinal = false, confidence = 0) => {
@@ -306,6 +426,13 @@ export const useASRStore = create((set, get) => ({
         }
       }))
       console.log('📝 保存完整文本:', text)
+
+      // 直接更新textarea内容
+      const trimmedText = text.trim()
+      if (trimmedText) {
+        get().setMessage(trimmedText)
+        setTimeout(() => get().autoResizeTextarea(), 0)
+      }
     } else {
       // is_final: true 时，只更新当前文本，不覆盖完整文本
       set((state) => ({
@@ -325,18 +452,6 @@ export const useASRStore = create((set, get) => ({
       const finalText = get().recognition.lastCompleteText || text || ''
       get().triggerASRComplete(finalText, 'final_received')
       return
-    }
-    // 触发实时输入更新事件
-    const {status} = get()
-    if (status.isSpaceKeyActive || status.mode === 'spacekey') {
-      window.dispatchEvent(new CustomEvent('asrInputUpdate', {
-        detail: {
-          text: text,
-          isFinal,
-          mode: status.mode,
-          timestamp: now
-        }
-      }))
     }
   },
   // ASR停止确认（来自服务器）
@@ -358,6 +473,14 @@ export const useASRStore = create((set, get) => ({
     const {recognition} = get()
     const textToUse = finalText || recognition.lastCompleteText || recognition.currentText || ''
     console.log(`🎤 ASR完成: "${textToUse}" (trigger: ${trigger})`)
+
+    // 更新textarea内容
+    const trimmed = textToUse.trim()
+    if (trimmed) {
+      get().setMessage(trimmed)
+      setTimeout(() => get().autoResizeTextarea(), 0)
+    }
+
     // 重置状态
     set((state) => ({
       status: {
@@ -372,17 +495,22 @@ export const useASRStore = create((set, get) => ({
         lastFragmentTime: null
       }
     }))
-    // 触发统一的ASR完成事件
-    trigger === 'final_received' && window.dispatchEvent(new CustomEvent('asrComplete', {
-      detail: {
-        finalText: textToUse.trim(),
-        mode: 'spacekey_final',
-        trigger,
-        timestamp: Date.now(),
-        confidence: recognition.confidence
-      }
-    }))
-    console.log('🎤 ASR完成，最终文本:', textToUse.trim())
+
+    // 触发ASR自动发送事件
+    if (trigger === 'final_received') {
+      console.log('🎤 空格键模式自动发送:', trimmed)
+      window.dispatchEvent(new CustomEvent('asrAutoSend', {
+        detail: {
+          finalText: trimmed,
+          mode: 'spacekey_final',
+          trigger,
+          timestamp: Date.now(),
+          confidence: recognition.confidence
+        }
+      }))
+    }
+
+    console.log('🎤 ASR完成，最终文本:', trimmed)
   },
   // ===================
   // 错误处理
@@ -434,14 +562,6 @@ export const useASRStore = create((set, get) => ({
         lastError: error
       }
     })
-    // 触发错误事件
-    window.dispatchEvent(new CustomEvent('asrServerError', {
-      detail: {
-        error: error || '语音识别出现错误',
-        timestamp: Date.now(),
-        mode: 'error'
-      }
-    }))
   },
   // ===================
   // 状态获取

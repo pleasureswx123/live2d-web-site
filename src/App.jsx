@@ -117,8 +117,6 @@ const AppContent = () => {
         <WorkingChatInterface
           enableFileUpload={true}
           enableASR={true}
-          onError={(error) => console.error('聊天错误:', error)}
-          onNotification={(message, type) => console.log('聊天通知:', message, type)}
           className="h-full bg-white/95 backdrop-blur-sm rounded-lg shadow-xl border"
         />
       </div>
