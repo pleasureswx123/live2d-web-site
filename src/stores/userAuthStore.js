@@ -576,6 +576,41 @@ export const useUserAuthStore = create((set, get) => ({
     }
   },
 
+  // 通过用户名切换用户
+  switchToUserByName: async (username) => {
+    if (!username.trim()) {
+      get().showSyncStatus('请输入用户名', 'error')
+      return false
+    }
+
+    try {
+      const { config, switchToUser } = get()
+
+      // 查找用户
+      const searchResponse = await fetch(`${config.apiBaseUrl}/memory/users/active`)
+      const searchData = await searchResponse.json()
+
+      let targetUser = null
+      if (searchData.success && searchData.active_users) {
+        targetUser = searchData.active_users.find(user =>
+          user.name === username || user.user_id === username
+        )
+      }
+
+      if (targetUser) {
+        await switchToUser(targetUser)
+        return true
+      } else {
+        get().showSyncStatus('用户不存在', 'error')
+        return false
+      }
+    } catch (error) {
+      console.error('用户切换失败:', error)
+      get().showSyncStatus('切换失败: ' + error.message, 'error')
+      return false
+    }
+  },
+
   // 手动同步
   handleManualSync: async () => {
     try {

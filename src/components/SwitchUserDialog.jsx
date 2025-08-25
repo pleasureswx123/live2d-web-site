@@ -8,7 +8,7 @@ import { X, Users, RefreshCw, Clock, User } from 'lucide-react'
 // 用户项组件
 const UserItem = ({ user, index, onSwitchUser }) => {
   const lastActiveTime = useLastActiveTime(user.last_active)
-  
+
   return (
     <motion.div
       key={user.user_id}
@@ -48,6 +48,7 @@ const SwitchUserDialog = () => {
     ui,
     users,
     switchToUser,
+    switchToUserByName,
     loadRecentUsers,
     hideSwitchUserDialog,
   } = useUserAuthStore()
@@ -64,41 +65,16 @@ const SwitchUserDialog = () => {
 
   // 处理手动输入用户名切换
   const handleUserSwitch = async () => {
-    if (!switchUsername.trim()) {
-      useUserAuthStore.getState().showSyncStatus('请输入用户名', 'error')
-      return
-    }
-
     setIsLoading(true)
-
     try {
-      // 查找用户
-      const { config } = useUserAuthStore.getState()
-      const searchResponse = await fetch(`${config.apiBaseUrl}/memory/users/active`)
-      const searchData = await searchResponse.json()
-
-      let targetUser = null
-      if (searchData.success && searchData.active_users) {
-        targetUser = searchData.active_users.find(user =>
-          user.name === switchUsername || user.user_id === switchUsername
-        )
-      }
-
-      if (targetUser) {
-        await switchToUser(targetUser)
+      const success = await switchToUserByName(switchUsername)
+      if (success) {
         setSwitchUsername('')
-      } else {
-        useUserAuthStore.getState().showSyncStatus('用户不存在', 'error')
       }
-    } catch (error) {
-      console.error('用户切换失败:', error)
-      useUserAuthStore.getState().showSyncStatus('切换失败: ' + error.message, 'error')
     } finally {
       setIsLoading(false)
     }
   }
-
-
 
   // 处理键盘事件
   const handleKeyDown = (e) => {
