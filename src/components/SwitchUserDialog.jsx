@@ -11,7 +11,6 @@ const SwitchUserDialog = () => {
     switchToUser,
     loadRecentUsers,
     hideSwitchUserDialog,
-    handleUserLogin
   } = useUserAuthStore()
 
   const [switchUsername, setSwitchUsername] = useState('')
@@ -23,18 +22,6 @@ const SwitchUserDialog = () => {
       loadRecentUsers()
     }
   }, [ui.showSwitchUserDialog, loadRecentUsers])
-
-  // 键盘事件处理
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && ui.showSwitchUserDialog) {
-        hideSwitchUserDialog()
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [ui.showSwitchUserDialog, hideSwitchUserDialog])
 
   // 处理手动输入用户名切换
   const handleUserSwitch = async () => {
@@ -113,7 +100,7 @@ const SwitchUserDialog = () => {
             transition={{ duration: 0.2 }}
           />
         </Dialog.Overlay>
-        
+
         <Dialog.Content asChild>
           <motion.div
             className="fixed inset-0 flex items-center justify-center p-4 z-50"
@@ -159,7 +146,7 @@ const SwitchUserDialog = () => {
                 </h4>
                 <div className="recent-users-list">
                   {users.recent.length === 0 ? (
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       className="no-users-text text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-xl"
@@ -255,7 +242,7 @@ const SwitchUserDialog = () => {
                   </>
                 )}
               </motion.button>
-              
+
               <motion.button
                 onClick={hideSwitchUserDialog}
                 className="login-btn flex-1 py-3 px-4 rounded-xl font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all duration-200"

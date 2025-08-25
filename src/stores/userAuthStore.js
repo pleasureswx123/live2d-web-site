@@ -661,7 +661,6 @@ export const useUserAuthStore = create((set, get) => ({
         showSwitchUserDialog: true
       }
     })
-    get().loadRecentUsers()
   },
 
   hideSwitchUserDialog: () => {
