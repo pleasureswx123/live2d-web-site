@@ -109,3 +109,33 @@ export const useSmartTime = (timestamp, locale = 'zh') => {
     maxDays: 30 // 30天内显示相对时间，超过显示绝对时间
   })
 }
+
+/**
+ * 最后活跃时间格式化Hook（专门用于显示用户最后活跃时间）
+ */
+export const useLastActiveTime = (timestamp, locale = 'zh') => {
+  const config = TIME_FORMAT_CONFIG[locale] || TIME_FORMAT_CONFIG.zh
+  
+  return useMemo(() => {
+    if (!timestamp) return config.never
+    
+    const now = new Date()
+    const lastActiveTime = new Date(timestamp)
+    const diffMs = now - lastActiveTime
+    const diffMinutes = Math.floor(diffMs / (1000 * 60))
+
+    if (diffMinutes < 1) {
+      return '刚刚活跃'
+    } else if (diffMinutes < 60) {
+      return `${diffMinutes}分钟前`
+    } else {
+      const diffHours = Math.floor(diffMinutes / 60)
+      if (diffHours < 24) {
+        return `${diffHours}小时前`
+      } else {
+        const diffDays = Math.floor(diffHours / 24)
+        return `${diffDays}天前`
+      }
+    }
+  }, [timestamp, locale])
+}

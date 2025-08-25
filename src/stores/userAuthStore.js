@@ -562,6 +562,9 @@ export const useUserAuthStore = create((set, get) => ({
         }
       })
 
+      // 执行同步检查
+      sessionManager.refresh(false)
+
       console.log(`✅ 已切换到用户: ${user.name} (${user.user_id})`)
       showSyncStatus(`已切换到 ${user.name}`, 'success')
 

@@ -2,7 +2,46 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useUserAuthStore } from '../stores/userAuthStore'
+import { useLastActiveTime } from '../hooks/useTimeFormat'
 import { X, Users, RefreshCw, Clock, User } from 'lucide-react'
+
+// 用户项组件
+const UserItem = ({ user, index, onSwitchUser }) => {
+  const lastActiveTime = useLastActiveTime(user.last_active)
+  
+  return (
+    <motion.div
+      key={user.user_id}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.2, delay: index * 0.05 }}
+      onClick={() => onSwitchUser(user)}
+      className="user-item p-4 bg-gray-50 rounded-xl hover:bg-gray-100 cursor-pointer transition-all duration-200 hover:shadow-md"
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+    >
+      <div className="flex items-center justify-between">
+        <div className="user-item-info flex items-center">
+          <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center mr-3">
+            <User size={16} className="text-white" />
+          </div>
+          <div>
+            <div className="user-item-name font-medium text-gray-800">
+              {user.name || '匿名用户'}
+            </div>
+            <div className="user-item-id text-sm text-gray-500">
+              ID: {user.user_id}
+            </div>
+          </div>
+        </div>
+        <div className="user-item-time text-xs text-gray-400 bg-white px-2 py-1 rounded-full">
+          {lastActiveTime}
+        </div>
+      </div>
+    </motion.div>
+  )
+}
 
 const SwitchUserDialog = () => {
   const {
@@ -59,26 +98,7 @@ const SwitchUserDialog = () => {
     }
   }
 
-  // 格式化时间显示
-  const formatTime = (lastActive) => {
-    const lastActiveTime = new Date(lastActive)
-    const now = new Date()
-    const diffMinutes = Math.floor((now - lastActiveTime) / (1000 * 60))
 
-    if (diffMinutes < 1) {
-      return '刚刚活跃'
-    } else if (diffMinutes < 60) {
-      return `${diffMinutes}分钟前`
-    } else {
-      const diffHours = Math.floor(diffMinutes / 60)
-      if (diffHours < 24) {
-        return `${diffHours}小时前`
-      } else {
-        const diffDays = Math.floor(diffHours / 24)
-        return `${diffDays}天前`
-      }
-    }
-  }
 
   // 处理键盘事件
   const handleKeyDown = (e) => {
@@ -157,36 +177,12 @@ const SwitchUserDialog = () => {
                     <div className="space-y-2">
                       <AnimatePresence>
                         {users.recent.map((user, index) => (
-                          <motion.div
+                          <UserItem
                             key={user.user_id}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            transition={{ duration: 0.2, delay: index * 0.05 }}
-                            onClick={() => switchToUser(user)}
-                            className="user-item p-4 bg-gray-50 rounded-xl hover:bg-gray-100 cursor-pointer transition-all duration-200 hover:shadow-md"
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="user-item-info flex items-center">
-                                <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center mr-3">
-                                  <User size={16} className="text-white" />
-                                </div>
-                                <div>
-                                  <div className="user-item-name font-medium text-gray-800">
-                                    {user.name || '匿名用户'}
-                                  </div>
-                                  <div className="user-item-id text-sm text-gray-500">
-                                    ID: {user.user_id}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="user-item-time text-xs text-gray-400 bg-white px-2 py-1 rounded-full">
-                                {formatTime(user.last_active)}
-                              </div>
-                            </div>
-                          </motion.div>
+                            user={user}
+                            index={index}
+                            onSwitchUser={switchToUser}
+                          />
                         ))}
                       </AnimatePresence>
                     </div>
