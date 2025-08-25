@@ -62,7 +62,7 @@ const AppContent = () => {
 
   // 应用启动时初始化用户认证系统
   useEffect(() => {
-    console.log('🚀 App 启动，初始化用户认证系统')
+    console.log('🚀 App 启动，初始化用户系统 认证系统')
     initializeUserSystem()
   }, [initializeUserSystem])
 

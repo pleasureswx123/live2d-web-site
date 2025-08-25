@@ -5,7 +5,6 @@ import { useChatMessagesStore } from '../stores/chatMessagesStore'
 import { useASRStore } from '../stores/asrStore'
 import { useProfileStore } from '../stores/profileStore'
 import { useConversionStore } from '../stores/conversionStore'
-import { useProactiveChatStore } from '../stores/proactiveChatStore'
 import { useTTSStore } from '../stores/ttsStore'
 
 // 创建 WebSocket Context
@@ -414,9 +413,10 @@ export const WebSocketProvider = ({ children }) => {
   // 监听用户变化，重新连接 WebSocket
   useEffect(() => {
     if (currentUser?.id) {
+      console.log('🔄 初始化用户系统  已登录，准备连接 WebSocket...')
       connectWebSocket()
       // 更新欢迎消息（集成点 - 可以被聊天系统调用）
-      switchToUser(currentUser)
+      switchToUser(currentUser);
     } else {
       disconnectWebSocket()
     }

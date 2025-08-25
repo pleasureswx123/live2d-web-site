@@ -600,7 +600,7 @@ export const useUserAuthStore = create((set, get) => ({
 
   // 初始化用户系统
   initializeUserSystem: () => {
-    const { sessionManager, performSmartSync } = get()
+    const { sessionManager } = get()
 
     console.log('🔄 初始化用户系统...')
 
@@ -613,13 +613,8 @@ export const useUserAuthStore = create((set, get) => ({
         ui: { ...get().ui, showLoginDialog: false }
       })
 
-      // 执行智能同步检查
-      setTimeout(() => {
-        performSmartSync()
-      }, 1000)
-
-      // 设置定期同步检查
-      setInterval(performSmartSync, 10 * 60 * 1000)
+      // 执行同步检查
+      sessionManager.refresh(false)
 
       return true
     } else {

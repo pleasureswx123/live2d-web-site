@@ -12,20 +12,13 @@ const UserInfoCard = () => {
     handleManualSync,
     logoutUser,
     showSwitchUserDialog,
-    initializeUserSystem
   } = useUserAuthStore()
 
-  // 组件挂载时初始化用户系统
-  useEffect(() => {
-    console.log('🚀 UserInfoCard 组件挂载，开始初始化用户系统')
-    initializeUserSystem()
-  }, [initializeUserSystem])
-
   // 格式化同步时间
-  const formatSyncTime = () => {
-    if (!session.lastSync) return '未同步'
+  const formatSyncTime = (time) => {
+    if (!time) return '未同步'
 
-    const syncTime = new Date(session.lastSync)
+    const syncTime = new Date(time)
     const now = new Date()
     const diffMinutes = Math.floor((now - syncTime) / (1000 * 60))
 
@@ -43,18 +36,6 @@ const UserInfoCard = () => {
       }
     }
   }
-
-  // 实时更新同步时间显示
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // 强制重新渲染以更新时间显示
-      if (session.lastSync) {
-        // 这里可以触发重新渲染
-      }
-    }, 300000) // 每5分钟更新一次
-
-    return () => clearInterval(interval)
-  }, [session.lastSync])
 
   // 如果没有用户信息，不显示组件
   if (!currentUser.id || !currentUser.name) {
@@ -142,7 +123,7 @@ const UserInfoCard = () => {
           {/* 同步信息 */}
           <div className="user-sync-info flex items-center justify-between text-xs mb-3">
             <span className="sync-time text-gray-500">
-              {formatSyncTime()}
+              {formatSyncTime(session.lastSync)}
             </span>
             <motion.span
               className={`online-indicator w-2 h-2 rounded-full ${
