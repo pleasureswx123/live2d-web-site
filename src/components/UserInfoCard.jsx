@@ -51,7 +51,7 @@ const UserInfoCard = () => {
       if (session.lastSync) {
         // 这里可以触发重新渲染
       }
-    }, 60000) // 每分钟更新一次
+    }, 300000) // 每5分钟更新一次
 
     return () => clearInterval(interval)
   }, [session.lastSync])
