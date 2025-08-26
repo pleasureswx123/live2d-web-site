@@ -14,7 +14,7 @@ const RightDrawer = ({ children }) => {
       </Drawer.Trigger>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-black/40 z-40" />
-        <Drawer.Content className="bg-white flex flex-col h-full w-[400px] fixed right-0 top-0 z-50">
+        <Drawer.Content className="bg-white flex flex-col h-full w-80 fixed right-0 top-0 z-50">
           <div className="p-4 border-b border-gray-200 hidden">
             <div className="flex items-center justify-between">
               <Drawer.Title className="text-lg font-semibold text-gray-800">
