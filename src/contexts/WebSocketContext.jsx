@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useVoice } from './VoiceContext'
 import { useUserAuthStore } from '../stores/userAuthStore'
 import { useChatMessagesStore } from '../stores/chatMessagesStore'
@@ -41,7 +41,12 @@ export const WebSocketProvider = ({ children }) => {
   }, [connectionStatus])
 
   // 连接 WebSocket
-  const connectWebSocket = () => {
+  const connectWebSocket = useCallback(() => {
+    const { currentUser: curUser } = useUserAuthStore.getState();
+    if (!curUser?.id) {
+      return
+    }
+
     if (wsRef.current && wsRef.current.readyState <= 1) {
       console.log('WebSocket 已连接或正在连接中')
       return
@@ -69,12 +74,12 @@ export const WebSocketProvider = ({ children }) => {
       console.log('🎵 TTS Store WebSocket连接已设置')
 
       // 发送用户初始化消息
-      if (currentUser?.id) {
+      if (curUser?.id) {
         ws.send(JSON.stringify({
           type: 'init',
-          user_id: currentUser.id
+          user_id: curUser.id
         }))
-        console.log('📤 用户初始化消息已发送:', currentUser.id)
+        console.log('📤 用户初始化消息已发送:', curUser.id)
       }
     }
 
@@ -114,10 +119,10 @@ export const WebSocketProvider = ({ children }) => {
       console.error('❌ WebSocket错误:', error)
       setConnectionStatus('disconnected')
     }
-  }
+  }, [asrStore, ttsStore, setWebSocketRef, setConnectionStatus])
 
   // 断开 WebSocket 连接
-  const disconnectWebSocket = () => {
+  const disconnectWebSocket = useCallback(() => {
     if (wsRef.current) {
       wsRef.current.close()
       wsRef.current = null
@@ -136,10 +141,10 @@ export const WebSocketProvider = ({ children }) => {
 
       console.log('🔌 WebSocket连接已手动断开')
     }
-  }
+  }, [asrStore, ttsStore, setWebSocketRef, setConnectionStatus])
 
   // 发送消息
-  const sendMessage = (message) => {
+  const sendMessage = useCallback((message) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(message))
       console.log('📤 WebSocket消息已发送:', message)
@@ -148,7 +153,7 @@ export const WebSocketProvider = ({ children }) => {
       console.warn('⚠️ WebSocket未连接，无法发送消息')
       return false
     }
-  }
+  }, [])
 
   // 处理 WebSocket 消息
   const handleWebSocketMessage = (data) => {
@@ -370,12 +375,12 @@ export const WebSocketProvider = ({ children }) => {
 
   const syncCurrentTTSSettings = () => {
     console.log('🔄 同步TTS设置到后端:', {voice: currentVoice, speed: currentSpeed});
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        type: 'sync_tts_settings',
-        voice: currentVoice,
-        speed: currentSpeed
-      }));
+    const success = sendMessage({
+      type: 'sync_tts_settings',
+      voice: currentVoice,
+      speed: currentSpeed
+    });
+    if (success) {
       console.log('📤 TTS设置同步请求已发送');
     } else {
       console.log('⚠️ WebSocket未连接，无法同步TTS设置');
@@ -412,13 +417,12 @@ export const WebSocketProvider = ({ children }) => {
 
   // 监听用户变化，重新连接 WebSocket
   useEffect(() => {
+    disconnectWebSocket();
     if (currentUser?.id) {
       console.log('🔄 初始化用户系统  已登录，准备连接 WebSocket...')
       connectWebSocket()
       // 更新欢迎消息（集成点 - 可以被聊天系统调用）
       switchToUser(currentUser);
-    } else {
-      disconnectWebSocket()
     }
   }, [currentUser?.id])
 
@@ -429,13 +433,13 @@ export const WebSocketProvider = ({ children }) => {
     }
   }, [])
 
-  const value = {
+  const value = useMemo(() => ({
     connectionStatus,
     connectWebSocket,
     disconnectWebSocket,
     sendMessage,
     wsRef: wsRef.current
-  }
+  }), [connectionStatus, connectWebSocket, disconnectWebSocket, sendMessage])
 
   return (
     <WebSocketContext.Provider value={value}>
