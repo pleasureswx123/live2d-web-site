@@ -371,6 +371,12 @@ export const useFileUploadStore = create((set, get) => ({
     }
   },
 
+  // 获取当前文件信息
+  getCurrentFile: () => {
+    const { files } = get()
+    return files.current
+  },
+
   // 获取文件信息
   getFileInfo: () => {
     const { files } = get()

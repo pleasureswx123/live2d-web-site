@@ -332,34 +332,6 @@ export const WebSocketProvider = ({ children }) => {
     }
   }
 
-  const recordLLMFirstToken = () => {
-    console.log('⏱️ 记录LLM首字响应时间 - 待实现')
-  }
-
-
-
-  // 监听全局音频停止事件
-  useEffect(() => {
-    const handleStopAllTTS = () => {
-      console.log('🛑 收到全局停止TTS事件')
-      useTTSStore.getState().stopAllAudio()
-    }
-
-    const handleClearAudioQueue = () => {
-      console.log('🗑️ 收到清空音频队列事件')
-      useTTSStore.getState().clearAudioQueue()
-    }
-
-    // 注册事件监听器
-    window.addEventListener('stopAllTTS', handleStopAllTTS)
-    window.addEventListener('clearAudioQueue', handleClearAudioQueue)
-
-    return () => {
-      window.removeEventListener('stopAllTTS', handleStopAllTTS)
-      window.removeEventListener('clearAudioQueue', handleClearAudioQueue)
-    }
-  }, [])
-
   // 监听用户变化，重新连接 WebSocket
   useEffect(() => {
     disconnectWebSocket();

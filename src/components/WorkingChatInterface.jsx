@@ -4,6 +4,7 @@ import { useChatMessagesStore } from '../stores/chatMessagesStore'
 
 import { useFileUploadStore } from '../stores/fileUploadStore'
 import { useASRStore } from '../stores/asrStore'
+import { useTTSStore } from '../stores/ttsStore'
 import { useSystemControlStore } from '../stores/systemControlStore'
 import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
@@ -25,12 +26,11 @@ const WorkingChatInterface = ({
   placeholder = "发送消息给悠悠...",
   ...props
 }) => {
-  const { isSearchEnabled } = useSystemControlStore();
 
   // WebSocket和Stores
   const { sendMessage, connectionStatus } = useWebSocket()
   const {messages, addUserMessage, scrollToBottom, showSearchIndicator} = useChatMessagesStore()
-  const {files, ui: fileUI, selectFile, removeFile, startUpload} = useFileUploadStore()
+  const {files, ui: fileUI, selectFile, removeFile, startUpload, getCurrentFile} = useFileUploadStore()
   const {
     status: recording,
     recognition,
@@ -68,7 +68,7 @@ const WorkingChatInterface = ({
 
   // 检测是否需要搜索
   const shouldTriggerSearch = (text) => {
-    if (!isSearchEnabled || !text) return false
+    if (!useSystemControlStore.getState().isSearchEnabled || !text) return false
 
     const hasSearchKeyword = searchKeywords.some(keyword => text.includes(keyword))
     const isTimeQuery = timeKeywords.some(keyword => text.includes(keyword))
@@ -80,8 +80,8 @@ const WorkingChatInterface = ({
   // 停止所有TTS音频
   const stopAllTTSAudio = () => {
     console.log('🛑 打断所有TTS播放')
-    window.dispatchEvent(new CustomEvent('stopAllTTS'))
-    window.dispatchEvent(new CustomEvent('clearAudioQueue'))
+    useTTSStore.getState().stopAllAudio()
+    useTTSStore.getState().clearAudioQueue()
   }
 
   // 处理键盘事件
@@ -99,7 +99,7 @@ const WorkingChatInterface = ({
   }
 
   // 处理文件上传
-  const handleFileUpload = async (file) => {
+  const handleFileUpload = async () => {
     try {
       const uploadFunction = async (file, progressCallback) => {
         const formData = new FormData()
@@ -140,8 +140,10 @@ const WorkingChatInterface = ({
     // 使用 store 获取最新的 message 值，避免闭包陷阱
     const trimmedMessage = getCurrentMessage().trim()
 
+    const currentFile = getCurrentFile()
+
     // 验证消息内容
-    if (!trimmedMessage && !selectedFile) {
+    if (!trimmedMessage && !currentFile) {
       return
     }
 
@@ -170,10 +172,10 @@ const WorkingChatInterface = ({
       }
 
       // 处理文件上传
-      if (selectedFile) {
-        console.log('📎 处理文件上传:', selectedFile.file.name)
+      if (currentFile) {
+        console.log('📎 处理文件上传:', currentFile.file.name)
         try {
-          const fileUrl = await handleFileUpload(selectedFile.file)
+          const fileUrl = await handleFileUpload()
           if (fileUrl) {
             messageData.image_url = fileUrl
           }
@@ -183,7 +185,7 @@ const WorkingChatInterface = ({
       }
 
       // 显示用户消息
-      addUserMessage(trimmedMessage, selectedFile?.file)
+      addUserMessage(trimmedMessage, currentFile?.file)
 
       // 发送WebSocket消息
       const success = sendMessage(messageData)
@@ -193,7 +195,7 @@ const WorkingChatInterface = ({
 
       // 清空输入
       clearMessage()
-      if (selectedFile) {
+      if (currentFile) {
         removeFile()
       }
       autoResizeTextarea()
@@ -206,7 +208,7 @@ const WorkingChatInterface = ({
     } finally {
       setIsSending(false)
     }
-  }, [selectedFile, sendMessage, shouldTriggerSearch, showSearchIndicator, handleFileUpload, addUserMessage, removeFile, autoResizeTextarea, scrollToBottom, stopAllTTSAudio, getCurrentMessage, clearMessage, setIsSending])
+  }, [addUserMessage, removeFile, autoResizeTextarea, scrollToBottom, getCurrentMessage, clearMessage, setIsSending])
 
   // 检查是否在输入框中
   const isInInputElement = () => {
