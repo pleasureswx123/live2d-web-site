@@ -282,9 +282,9 @@ export const useVoiceStore = create((set, get) => ({
   setWebSocketRef: (ws) => {
     set({ wsRef: ws })
     // 如果是首次设置WebSocket，初始化对话阶段
-    const { changeStage } = get()
-    console.log('💬 首次WebSocket连接，初始化对话阶段')
-    changeStage('initial_meeting')
+    // const { changeStage } = get()
+    // console.log('💬 首次WebSocket连接，初始化对话阶段')
+    // changeStage('initial_meeting')
   },
 
   // 获取WebSocket引用

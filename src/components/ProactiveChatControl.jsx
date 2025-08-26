@@ -17,7 +17,6 @@ const ProactiveChatControl = () => {
     setProactiveChat,
     toggleDebugInfo,
     getStatusText,
-    loadSilenceTimeout,
     getRecentTopicsText,
     getPendingStatusText,
     resetProactiveChatData
@@ -27,11 +26,6 @@ const ProactiveChatControl = () => {
   const { currentUser } = useUserAuthStore()
 
   const [tempTimeout, setTempTimeout] = useState(silenceTimeout)
-  useEffect(() => {
-    if (!currentUser?.id) return
-    // 初始化加载沉默时间
-    loadSilenceTimeout(currentUser?.id)
-  }, [currentUser?.id])
 
   // 当 store 的 silenceTimeout 更新时同步到临时UI
   useEffect(() => { setTempTimeout(silenceTimeout) }, [silenceTimeout])

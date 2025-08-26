@@ -3,6 +3,7 @@ import { useUserAuthStore } from '../stores/userAuthStore'
 import { useVoiceStore } from '../stores/voiceStore'
 import { useASRStore } from '../stores/asrStore'
 import { useTTSStore } from '../stores/ttsStore'
+import { useProactiveChatStore } from '../stores/proactiveChatStore'
 import { useChatMessagesStore } from '../stores/chatMessagesStore'
 import { useProfileStore } from '../stores/profileStore'
 import { useConversionStore } from '../stores/conversionStore'
@@ -363,6 +364,7 @@ export const WebSocketProvider = ({ children }) => {
     disconnectWebSocket();
     if (currentUser?.id) {
       console.log('🔄 初始化用户系统  已登录，准备连接 WebSocket...')
+      useProactiveChatStore.getState().loadSilenceTimeout(currentUser?.id)
       connectWebSocket()
       // 更新欢迎消息（集成点 - 可以被聊天系统调用）
       useChatMessagesStore.getState().switchToUser(currentUser);

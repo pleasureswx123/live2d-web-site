@@ -9,7 +9,7 @@ export const useProactiveChatStore = create((set, get) => ({
   apiBaseUrl: 'http://localhost:8000',
 
   // 主动对话是否启用
-  isProactiveChatEnabled: true,
+  isProactiveChatEnabled: false,
 
   // 主动对话统计
   proactiveChatCount: 0,
@@ -78,7 +78,7 @@ export const useProactiveChatStore = create((set, get) => ({
 	      return false
 	    }
 	    try {
-	      const resp = await fetch(`${apiBaseUrl}/proactive/silence-timeout/${currentUserId}`)
+          const resp = await fetch(`${apiBaseUrl}/proactive/silence-timeout/${currentUserId}`)
 	      if (resp.ok) {
 	        const result = await resp.json()
 	        const timeout = result?.silence_timeout ?? result?.timeout ?? result?.silenceTimeout
@@ -179,7 +179,7 @@ export const useProactiveChatStore = create((set, get) => ({
   resetProactiveChatData: () => {
     set({
       silenceTimeout: 30,
-      isProactiveChatEnabled: true,
+      isProactiveChatEnabled: false,
       proactiveChatCount: 0,
       proactiveChatHistory: [],
       recentTopics: new Set(),
