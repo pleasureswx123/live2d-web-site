@@ -1,4 +1,4 @@
-import {useState, useEffect, useRef} from 'react'
+import {useState, useEffect} from 'react'
 import {useVoiceStore} from './stores/voiceStore'
 import {WebSocketProvider} from './contexts/WebSocketContext'
 import {ToastProvider, useToast} from './components/ui/toast'
@@ -56,9 +56,8 @@ const AppContent = () => {
   // 获取用户认证初始化函数
   const initializeUserSystem = useUserAuthStore(state => state.initializeUserSystem)
   const {width, height} = useViewport()
-  const {registerToast, changeStage} = useVoiceStore()
+  const {registerToast} = useVoiceStore()
   const {addToast} = useToast()
-  const hasInitialized = useRef(false)
 
   // 应用启动时初始化用户认证系统
   useEffect(() => {
@@ -66,15 +65,6 @@ const AppContent = () => {
     initializeUserSystem()
   }, [initializeUserSystem])
 
-  useEffect(() => {
-    if (hasInitialized.current) {
-      console.log('💬 对话阶段组件初始化已跳过（已执行过）')
-      return
-    }
-    changeStage('initial_meeting')
-    hasInitialized.current = true
-    console.log('💬 对话阶段组件已初始化，设置为初识阶段')
-  }, [])
   // 注册Toast函数到VoiceContext
   useEffect(() => {
     registerToast(addToast)

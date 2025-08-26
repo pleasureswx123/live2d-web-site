@@ -102,9 +102,12 @@ export const useVoiceStore = create((set, get) => ({
   // ===================
   // 切换音色
   changeVoice: (voiceId) => {
-    const { wsRef, showNotification } = get()
+    const { showNotification, isWsOpen, sendWsMessage } = get()
+    if (!isWsOpen()) {
+      return
+    }
     const voiceName = voiceNames[voiceId] || '未知音色'
-    
+
     set({ currentVoice: voiceId })
     console.log(`🎵 音色已切换为: ${voiceName} (${voiceId})`)
 
@@ -112,13 +115,14 @@ export const useVoiceStore = create((set, get) => ({
     showNotification('音色切换', `音色已切换为: ${voiceName}`)
 
     // 发送音色切换请求到后端
-    if (wsRef && wsRef.readyState === WebSocket.OPEN) {
-      wsRef.send(JSON.stringify({
-        type: 'change_voice',
-        voice: voiceId
-      }))
+    sendWsMessage({
+      type: 'change_voice',
+      voice: voiceId
+    }).then(() => {
       console.log(`📤 音色切换请求已发送: ${voiceId}`)
-    }
+    }).catch((error) => {
+      console.error(`❌ 音色切换请求已发送: ${voiceId}`, error)
+    })
   },
 
   // 获取当前音色名称
@@ -132,8 +136,10 @@ export const useVoiceStore = create((set, get) => ({
   // ===================
   // 切换语速
   changeSpeed: (speed) => {
-    const { wsRef, showNotification } = get()
-    
+    const { showNotification, isWsOpen, sendWsMessage } = get()
+    if (!isWsOpen()) {
+      return
+    }
     set({ currentSpeed: speed })
     console.log(`🎚️ 语速已调节为: ${speed.toFixed(1)}x`)
 
@@ -142,13 +148,14 @@ export const useVoiceStore = create((set, get) => ({
     showNotification('语速调节', `语速已调节为: ${speed.toFixed(1)}x (${speedText})`)
 
     // 发送语速调节请求到后端
-    if (wsRef && wsRef.readyState === WebSocket.OPEN) {
-      wsRef.send(JSON.stringify({
-        type: 'change_speed',
-        speed: speed
-      }))
+    sendWsMessage({
+      type: 'change_speed',
+      speed: speed
+    }).then(() => {
       console.log(`📤 语速调节请求已发送: ${speed}`)
-    }
+    }).catch((error) => {
+      console.error(`❌ 语速调节请求已发送: ${speed}`, error)
+    })
   },
 
   // 获取语速描述
@@ -159,9 +166,12 @@ export const useVoiceStore = create((set, get) => ({
   // ===================
   // 切换ASR
   changeASR: (asrId) => {
-    const { wsRef, showNotification } = get()
+    const { showNotification, isWsOpen, sendWsMessage } = get()
+    if (!isWsOpen()) {
+      return
+    }
     const asrName = asrNames[asrId] || '未知ASR'
-    
+
     set({ currentASR: asrId })
     console.log(`🎤 ASR已切换为: ${asrName} (${asrId})`)
 
@@ -169,13 +179,14 @@ export const useVoiceStore = create((set, get) => ({
     showNotification('语音识别切换', `ASR已切换为: ${asrName}`)
 
     // 发送ASR切换请求到后端
-    if (wsRef && wsRef.readyState === WebSocket.OPEN) {
-      wsRef.send(JSON.stringify({
-        type: 'change_asr',
-        asr_type: asrId
-      }))
+    sendWsMessage({
+      type: 'change_asr',
+      asr_type: asrId
+    }).then(() => {
       console.log(`📤 ASR切换请求已发送: ${asrId}`)
-    }
+    }).catch((error) => {
+      console.error(`❌ 发送ASR切换请求失败: ${asrId}`, error)
+    })
   },
 
   // 获取当前ASR名称
@@ -204,30 +215,58 @@ export const useVoiceStore = create((set, get) => ({
       console.error('❌ 更新对话阶段信息失败:', error)
     }
   },
+  // 判断wsRef是否已打开
+  isWsOpen: () => {
+    const { wsRef } = get();
+    return wsRef && wsRef.readyState === WebSocket.OPEN
+  },
+  // 封装wsRef.send方法
+  sendWsMessage: (message) => {
+    return new Promise((resolve, reject) => {
+      const { wsRef, isWsOpen } = get()
+      if (isWsOpen()) {
+        try {
+          wsRef.send(JSON.stringify(message))
+          resolve(true)
+        } catch (error) {
+          console.error('❌ 发送WebSocket消息失败:', error)
+          reject(error)
+        }
+      } else {
+        const error = new Error('WebSocket连接未打开')
+        console.error('❌ WebSocket连接未打开，无法发送消息')
+        reject(error)
+      }
+    })
+  },
 
   // 手动切换对话阶段
   changeStage: (selectedStage) => {
-    const { wsRef, showNotification } = get()
+    const { showNotification, isWsOpen, sendWsMessage } = get()
+    if (!isWsOpen()) {
+      return
+    }
     const stageName = stageNames[selectedStage] || selectedStage
-    
+
     set({
       isManualStageControl: false,
       manualStage: selectedStage
     })
-    
+
     console.log(`🎛️ 手动设置对话阶段为: ${selectedStage}`)
 
     // 显示通知
     showNotification('对话阶段调节', `对话阶段已手动调节为: ${stageName}`)
 
     // 发送阶段调节请求到后端
-    if (wsRef && wsRef.readyState === WebSocket.OPEN) {
-      wsRef.send(JSON.stringify({
-        type: 'manual_stage_change',
-        stage: selectedStage
-      }))
+    sendWsMessage({
+      type: 'manual_stage_change',
+      stage: selectedStage
+    }).then(() => {
       console.log(`📤 手动阶段调节请求已发送: ${selectedStage}`)
-    }
+    }).catch((error) => {
+      console.error(`❌ 发送阶段调节请求失败: ${selectedStage}`, error)
+    })
   },
 
   // 获取当前阶段名称
@@ -242,6 +281,10 @@ export const useVoiceStore = create((set, get) => ({
   // 设置WebSocket引用
   setWebSocketRef: (ws) => {
     set({ wsRef: ws })
+    // 如果是首次设置WebSocket，初始化对话阶段
+    const { changeStage } = get()
+    console.log('💬 首次WebSocket连接，初始化对话阶段')
+    changeStage('initial_meeting')
   },
 
   // 获取WebSocket引用

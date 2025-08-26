@@ -17,7 +17,7 @@ export const WebSocketProvider = ({ children }) => {
 
   // 获取用户信息和其他 context
   const { currentUser } = useUserAuthStore()
-  const { setWebSocketRef, showNotification, updateConversationStage, currentVoice, currentSpeed } = useVoiceStore()
+  const { showNotification, updateConversationStage, currentVoice, currentSpeed } = useVoiceStore()
   const {
     createNewBotMessageForWebSocket,
     appendToBotMessage,
@@ -61,7 +61,7 @@ export const WebSocketProvider = ({ children }) => {
       console.log('✅ WebSocket连接已建立')
       setConnectionStatus('connected')
       wsRef.current = ws
-      setWebSocketRef(ws)
+      useVoiceStore.getState().setWebSocketRef(ws)
 
       // 设置ASR Store的WebSocket连接
       if (asrStore.setWebSocket) {
@@ -96,7 +96,7 @@ export const WebSocketProvider = ({ children }) => {
       console.log('🔌 WebSocket连接已关闭')
       setConnectionStatus('disconnected')
       wsRef.current = null
-      setWebSocketRef(null)
+      useVoiceStore.getState().setWebSocketRef(null)
 
       // 清除ASR Store的WebSocket连接
       if (asrStore.setWebSocket) {
@@ -119,14 +119,14 @@ export const WebSocketProvider = ({ children }) => {
       console.error('❌ WebSocket错误:', error)
       setConnectionStatus('disconnected')
     }
-  }, [asrStore, ttsStore, setWebSocketRef, setConnectionStatus])
+  }, [asrStore, ttsStore, setConnectionStatus])
 
   // 断开 WebSocket 连接
   const disconnectWebSocket = useCallback(() => {
     if (wsRef.current) {
       wsRef.current.close()
       wsRef.current = null
-      setWebSocketRef(null)
+      useVoiceStore.getState().setWebSocketRef(null)
       setConnectionStatus('disconnected')
 
       // 清除ASR Store的WebSocket连接
@@ -141,7 +141,7 @@ export const WebSocketProvider = ({ children }) => {
 
       console.log('🔌 WebSocket连接已手动断开')
     }
-  }, [asrStore, ttsStore, setWebSocketRef, setConnectionStatus])
+  }, [asrStore, ttsStore, setConnectionStatus])
 
   // 发送消息
   const sendMessage = useCallback((message) => {
