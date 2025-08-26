@@ -1,11 +1,12 @@
 import { createContext, useContext, useEffect, useRef, useState, useMemo, useCallback } from 'react'
-import { useVoiceStore } from '../stores/voiceStore'
 import { useUserAuthStore } from '../stores/userAuthStore'
-import { useChatMessagesStore } from '../stores/chatMessagesStore'
+import { useVoiceStore } from '../stores/voiceStore'
 import { useASRStore } from '../stores/asrStore'
+import { useTTSStore } from '../stores/ttsStore'
+
+import { useChatMessagesStore } from '../stores/chatMessagesStore'
 import { useProfileStore } from '../stores/profileStore'
 import { useConversionStore } from '../stores/conversionStore'
-import { useTTSStore } from '../stores/ttsStore'
 
 // 创建 WebSocket Context
 const WebSocketContext = createContext()
@@ -27,17 +28,8 @@ export const WebSocketProvider = ({ children }) => {
     switchToUser,
   } = useChatMessagesStore()
 
-  // 获取 ASR Store 的方法（在组件顶层调用）
-  const asrStore = useASRStore()
   const { updateProfileActivity } = useProfileStore();
   const { addConversionActivity } = useConversionStore();
-
-  // 当WebSocket连接状态改变时，更新ASR Store
-  useEffect(() => {
-    if (asrStore.updateConnectionFromContext) {
-      asrStore.updateConnectionFromContext(wsRef, connectionStatus)
-    }
-  }, [connectionStatus])
 
   // 连接 WebSocket
   const connectWebSocket = useCallback(() => {
@@ -62,15 +54,7 @@ export const WebSocketProvider = ({ children }) => {
       wsRef.current = ws
       useVoiceStore.getState().setWebSocketRef(ws)
       useTTSStore.getState().setWebSocketRef(ws)
-
-      // 设置ASR Store的WebSocket连接
-      if (asrStore.setWebSocket) {
-        asrStore.setWebSocket(ws)
-        console.log('🎤 ASR Store WebSocket连接已设置')
-      }
-
-      console.log('🎵 TTS Store WebSocket连接已设置')
-
+      useASRStore.getState().setWebSocketRef(ws)
       // 发送用户初始化消息
       if (curUser?.id) {
         ws.send(JSON.stringify({
@@ -96,15 +80,7 @@ export const WebSocketProvider = ({ children }) => {
       wsRef.current = null
       useVoiceStore.getState().setWebSocketRef(null)
       useTTSStore.getState().setWebSocketRef(null)
-
-      // 清除ASR Store的WebSocket连接
-      if (asrStore.setWebSocket) {
-        asrStore.setWebSocket(null)
-        console.log('🎤 ASR Store WebSocket连接已清除')
-      }
-
-      console.log('🎵 TTS Store WebSocket连接已清除')
-
+      useASRStore.getState().setWebSocketRef(null)
       // 5秒后重连
       setTimeout(() => {
         console.log('🔄 准备重新连接 WebSocket...')
@@ -116,7 +92,7 @@ export const WebSocketProvider = ({ children }) => {
       console.error('❌ WebSocket错误:', error)
       setConnectionStatus('disconnected')
     }
-  }, [asrStore, setConnectionStatus])
+  }, [])
 
   // 断开 WebSocket 连接
   const disconnectWebSocket = useCallback(() => {
@@ -125,19 +101,11 @@ export const WebSocketProvider = ({ children }) => {
       wsRef.current = null
       useVoiceStore.getState().setWebSocketRef(null)
       useTTSStore.getState().setWebSocketRef(null)
+      useASRStore.getState().setWebSocketRef(null)
       setConnectionStatus('disconnected')
-
-      // 清除ASR Store的WebSocket连接
-      if (asrStore.setWebSocket) {
-        asrStore.setWebSocket(null)
-        console.log('🎤 ASR Store WebSocket连接已清除')
-      }
-
-      console.log('🎵 TTS Store WebSocket连接已清除')
-
       console.log('🔌 WebSocket连接已手动断开')
     }
-  }, [asrStore, setConnectionStatus])
+  }, [])
 
   // 发送消息
   const sendMessage = useCallback((message) => {
@@ -319,30 +287,22 @@ export const WebSocketProvider = ({ children }) => {
 
       case 'asr_started':
         console.log('🎤 服务器确认ASR已启动')
-        if (asrStore.onASRStarted) {
-          asrStore.onASRStarted()
-        }
+        useASRStore.getState().onASRStarted()
         break
 
       case 'asr_result':
         console.log('🎤 ASR识别结果:', data.text, '(final:', data.is_final, ', confidence:', data.confidence, ')')
-        if (asrStore.onASRResult) {
-          asrStore.onASRResult(data.text, data.is_final, data.confidence)
-        }
+        useASRStore.getState().onASRResult(data.text, data.is_final, data.confidence)
         break
 
       case 'asr_stopped':
         console.log('🎤 服务器确认ASR已停止')
-        if (asrStore.onASRStopped) {
-          asrStore.onASRStopped()
-        }
+        useASRStore.getState().onASRStopped()
         break
 
       case 'asr_error':
         console.error('❌ ASR识别错误:', data.error)
-        if (asrStore.onASRError) {
-          asrStore.onASRError(data.error)
-        }
+        useASRStore.getState().onASRError(data.error)
         break
 
       case 'error':

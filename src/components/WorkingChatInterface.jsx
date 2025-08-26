@@ -281,7 +281,7 @@ const WorkingChatInterface = ({
     }
 
     window.addEventListener('asrAutoSend', handleASRAutoSend)
-    
+
     return () => {
       window.removeEventListener('asrAutoSend', handleASRAutoSend)
     }

@@ -173,7 +173,7 @@ export const useASRStore = create((set, get) => ({
   // 核心方法
   // ===================
   // 设置WebSocket连接
-  setWebSocket: (ws) => {
+  setWebSocketRef: (ws) => {
     set((state) => ({
       connection: {
         ...state.connection,
@@ -183,20 +183,6 @@ export const useASRStore = create((set, get) => ({
       }
     }))
     console.log('🔌 ASR WebSocket连接已设置:', !!ws)
-  },
-  // 更新连接状态（从WebSocketContext调用）
-  updateConnectionFromContext: (wsOrRef, connectionStatus) => {
-    const ws = wsOrRef && typeof wsOrRef === 'object' && 'readyState' in wsOrRef
-      ? wsOrRef
-      : wsOrRef?.current
-    set((state) => ({
-      connection: {
-        ...state.connection,
-        ws,
-        isConnected: connectionStatus === 'connected' && ws?.readyState === WebSocket.OPEN
-      }
-    }))
-    console.log('🔌 ASR连接状态更新:', connectionStatus, 'ws:', !!ws)
   },
   // 一个获取 connection的isConnected的 方法
   getIsConnected: () => {
