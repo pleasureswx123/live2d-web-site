@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useProactiveChatStore } from '../stores/proactiveChatStore'
 import { useUserAuthStore } from '../stores/userAuthStore'
-import { ChevronDown, ChevronUp, Settings } from 'lucide-react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useEffect } from 'react'
 import { useWebSocket } from '../contexts/WebSocketContext'
 

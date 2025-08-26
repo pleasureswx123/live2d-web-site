@@ -293,7 +293,7 @@ export const WebSocketProvider = ({ children }) => {
         useASRStore.getState().onASRError(data.error)
         break
 
-      case 'error':
+      case 'error': {
         // 如果有正在进行的流式消息，更新其内容为错误信息
         const chatStore = useChatMessagesStore.getState()
         if (chatStore.currentStreamingMessageId) {
@@ -304,6 +304,7 @@ export const WebSocketProvider = ({ children }) => {
           chatStore.addBotMessage('抱歉，生成回复时出现了错误...')
         }
         break
+      }
 
       default:
         console.log('🔍 未处理的消息类型:', data.type)
