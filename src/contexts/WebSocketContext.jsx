@@ -17,7 +17,7 @@ export const WebSocketProvider = ({ children }) => {
 
   // 获取用户信息和其他 context
   const { currentUser } = useUserAuthStore()
-  const { showNotification, updateConversationStage, currentVoice, currentSpeed } = useVoiceStore()
+  const { showNotification, updateConversationStage } = useVoiceStore()
   const {
     createNewBotMessageForWebSocket,
     appendToBotMessage,
@@ -31,7 +31,6 @@ export const WebSocketProvider = ({ children }) => {
   const asrStore = useASRStore()
   const { updateProfileActivity } = useProfileStore();
   const { addConversionActivity } = useConversionStore();
-  const ttsStore = useTTSStore();
 
   // 当WebSocket连接状态改变时，更新ASR Store
   useEffect(() => {
@@ -62,6 +61,7 @@ export const WebSocketProvider = ({ children }) => {
       setConnectionStatus('connected')
       wsRef.current = ws
       useVoiceStore.getState().setWebSocketRef(ws)
+      useTTSStore.getState().setWebSocketRef(ws)
 
       // 设置ASR Store的WebSocket连接
       if (asrStore.setWebSocket) {
@@ -69,8 +69,6 @@ export const WebSocketProvider = ({ children }) => {
         console.log('🎤 ASR Store WebSocket连接已设置')
       }
 
-      // 设置TTS Store的WebSocket连接
-      ttsStore.setWebSocketRef(ws)
       console.log('🎵 TTS Store WebSocket连接已设置')
 
       // 发送用户初始化消息
@@ -97,6 +95,7 @@ export const WebSocketProvider = ({ children }) => {
       setConnectionStatus('disconnected')
       wsRef.current = null
       useVoiceStore.getState().setWebSocketRef(null)
+      useTTSStore.getState().setWebSocketRef(null)
 
       // 清除ASR Store的WebSocket连接
       if (asrStore.setWebSocket) {
@@ -104,8 +103,6 @@ export const WebSocketProvider = ({ children }) => {
         console.log('🎤 ASR Store WebSocket连接已清除')
       }
 
-      // 清除TTS Store的WebSocket连接
-      ttsStore.setWebSocketRef(null)
       console.log('🎵 TTS Store WebSocket连接已清除')
 
       // 5秒后重连
@@ -119,7 +116,7 @@ export const WebSocketProvider = ({ children }) => {
       console.error('❌ WebSocket错误:', error)
       setConnectionStatus('disconnected')
     }
-  }, [asrStore, ttsStore, setConnectionStatus])
+  }, [asrStore, setConnectionStatus])
 
   // 断开 WebSocket 连接
   const disconnectWebSocket = useCallback(() => {
@@ -127,6 +124,7 @@ export const WebSocketProvider = ({ children }) => {
       wsRef.current.close()
       wsRef.current = null
       useVoiceStore.getState().setWebSocketRef(null)
+      useTTSStore.getState().setWebSocketRef(null)
       setConnectionStatus('disconnected')
 
       // 清除ASR Store的WebSocket连接
@@ -135,13 +133,11 @@ export const WebSocketProvider = ({ children }) => {
         console.log('🎤 ASR Store WebSocket连接已清除')
       }
 
-      // 清除TTS Store的WebSocket连接
-      ttsStore.setWebSocketRef(null)
       console.log('🎵 TTS Store WebSocket连接已清除')
 
       console.log('🔌 WebSocket连接已手动断开')
     }
-  }, [asrStore, ttsStore, setConnectionStatus])
+  }, [asrStore, setConnectionStatus])
 
   // 发送消息
   const sendMessage = useCallback((message) => {
@@ -204,13 +200,12 @@ export const WebSocketProvider = ({ children }) => {
       case 'generation_chunk':
         if (data.content) {
           appendToBotMessage(data.content)
-
           // 表情同步 - 从文本内容中匹配表情
           try {
-            const matchedExpression = ttsStore.matchExpression(data.content)
+            const matchedExpression = useTTSStore.getState().matchExpression(data.content)
             if (matchedExpression) {
               // 异步播放表情，不阻塞文本显示
-              ttsStore.playLive2DExpression(matchedExpression).catch(error => {
+              useTTSStore.getState().playLive2DExpression(matchedExpression).catch(error => {
                 console.warn('🎭 表情播放失败:', error)
               })
             }
@@ -233,7 +228,7 @@ export const WebSocketProvider = ({ children }) => {
           text: data.text
         })
         if (data.audio_data) {
-          ttsStore.playTTSAudio(data.audio_data, data.format || 'mp3')
+          useTTSStore.getState().playTTSAudio(data.audio_data, data.format || 'mp3')
         }
         break
 
@@ -249,10 +244,10 @@ export const WebSocketProvider = ({ children }) => {
           isProactive: data.is_proactive || false
         })
         if (data.audio_data && data.order) {
-          ttsStore.playTTSAudioChunkWithOrder(data.audio_data, data.format || 'mp3', data.order)
+          useTTSStore.getState().playTTSAudioChunkWithOrder(data.audio_data, data.format || 'mp3', data.order)
         } else if (data.audio_data) {
           // 兼容没有顺序号的情况
-          ttsStore.playTTSAudioChunk(data.audio_data, data.format || 'mp3')
+          useTTSStore.getState().playTTSAudioChunk(data.audio_data, data.format || 'mp3')
         } else {
           console.error('❌ 收到的tts_audio_chunk消息没有audio_data字段')
         }
@@ -261,7 +256,7 @@ export const WebSocketProvider = ({ children }) => {
       case 'tts_complete':
         // TTS生成完成（播放可能仍在继续，待 onTTSComplete 统一收尾）
         console.log('🎵 TTS: TTS生成完成', data)
-        ttsStore.onTTSComplete()
+        useTTSStore.getState().onTTSComplete()
         break
 
       case 'voice_change_success':
@@ -374,6 +369,7 @@ export const WebSocketProvider = ({ children }) => {
   }
 
   const syncCurrentTTSSettings = () => {
+    const  {currentVoice, currentSpeed } = useVoiceStore.getState()
     console.log('🔄 同步TTS设置到后端:', {voice: currentVoice, speed: currentSpeed});
     const success = sendMessage({
       type: 'sync_tts_settings',
@@ -397,12 +393,12 @@ export const WebSocketProvider = ({ children }) => {
   useEffect(() => {
     const handleStopAllTTS = () => {
       console.log('🛑 收到全局停止TTS事件')
-      ttsStore.stopAllAudio()
+      useTTSStore.getState().stopAllAudio()
     }
 
     const handleClearAudioQueue = () => {
       console.log('🗑️ 收到清空音频队列事件')
-      ttsStore.clearAudioQueue()
+      useTTSStore.getState().clearAudioQueue()
     }
 
     // 注册事件监听器
@@ -413,7 +409,7 @@ export const WebSocketProvider = ({ children }) => {
       window.removeEventListener('stopAllTTS', handleStopAllTTS)
       window.removeEventListener('clearAudioQueue', handleClearAudioQueue)
     }
-  }, [ttsStore])
+  }, [])
 
   // 监听用户变化，重新连接 WebSocket
   useEffect(() => {
