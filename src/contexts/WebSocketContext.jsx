@@ -3,7 +3,6 @@ import { useUserAuthStore } from '../stores/userAuthStore'
 import { useVoiceStore } from '../stores/voiceStore'
 import { useASRStore } from '../stores/asrStore'
 import { useTTSStore } from '../stores/ttsStore'
-
 import { useChatMessagesStore } from '../stores/chatMessagesStore'
 import { useProfileStore } from '../stores/profileStore'
 import { useConversionStore } from '../stores/conversionStore'
@@ -19,18 +18,6 @@ export const WebSocketProvider = ({ children }) => {
   // 获取用户信息和其他 context
   const { currentUser } = useUserAuthStore()
   const { showNotification, updateConversationStage } = useVoiceStore()
-  const {
-    createNewBotMessageForWebSocket,
-    appendToBotMessage,
-    finishStreamingMessage,
-    showSearchIndicator,
-    hideSearchIndicator,
-    switchToUser,
-  } = useChatMessagesStore()
-
-  const { updateProfileActivity } = useProfileStore();
-  const { addConversionActivity } = useConversionStore();
-
   // 连接 WebSocket
   const connectWebSocket = useCallback(() => {
     const { currentUser: curUser } = useUserAuthStore.getState();
@@ -148,26 +135,26 @@ export const WebSocketProvider = ({ children }) => {
         break
 
       case 'search_start':
-        showSearchIndicator(data.query)
+        useChatMessagesStore.getState().showSearchIndicator(data.query)
         break
 
       case 'search_complete':
-        hideSearchIndicator()
+        useChatMessagesStore.getState().hideSearchIndicator()
         break
 
       case 'search_error':
-        hideSearchIndicator()
+        useChatMessagesStore.getState().hideSearchIndicator()
         console.error('❌ 搜索错误:', data.error)
         break
 
       case 'generation_start':
         // 开始生成时创建新的机器人消息框
-        createNewBotMessageForWebSocket()
+        useChatMessagesStore.getState().createNewBotMessageForWebSocket()
         break
 
       case 'generation_chunk':
         if (data.content) {
-          appendToBotMessage(data.content)
+          useChatMessagesStore.getState().appendToBotMessage(data.content)
           // 表情同步 - 从文本内容中匹配表情
           try {
             const matchedExpression = useTTSStore.getState().matchExpression(data.content)
@@ -184,7 +171,7 @@ export const WebSocketProvider = ({ children }) => {
         break
 
       case 'generation_end':
-        finishStreamingMessage() // 完成流式消息
+        useChatMessagesStore.getState().finishStreamingMessage() // 完成流式消息
         break
 
       case 'tts_audio':
@@ -264,14 +251,14 @@ export const WebSocketProvider = ({ children }) => {
         console.log('📊 调试信息 - 完成度:', data.activity_info.completion_rate)
         console.log('📊 调试信息 - 关键信息状态:', data.activity_info.key_info_status)
         console.log('🔍 详细活动信息:', JSON.stringify(data.activity_info, null, 2))
-        updateProfileActivity(data.activity_info)
+        useProfileStore.getState().updateProfileActivity(data.activity_info)
         break
 
       case 'profile_updated':
         // 档案转换完成通知
         console.log('⚡ 档案转换完成:', data.conversion_summary)
-        updateProfileActivity(data.activity_info)
-        addConversionActivity(data.conversion_summary)
+        useProfileStore.getState().updateProfileActivity(data.activity_info)
+        useConversionStore.getState().addConversionActivity(data.conversion_summary)
         break
 
       case 'manual_stage_success':
@@ -378,7 +365,7 @@ export const WebSocketProvider = ({ children }) => {
       console.log('🔄 初始化用户系统  已登录，准备连接 WebSocket...')
       connectWebSocket()
       // 更新欢迎消息（集成点 - 可以被聊天系统调用）
-      switchToUser(currentUser);
+      useChatMessagesStore.getState().switchToUser(currentUser);
     }
   }, [currentUser?.id])
 
