@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, useMemo, useCallback } from 'react'
-import { useVoice } from './VoiceContext'
+import { useVoiceStore } from '../stores/voiceStore'
 import { useUserAuthStore } from '../stores/userAuthStore'
 import { useChatMessagesStore } from '../stores/chatMessagesStore'
 import { useASRStore } from '../stores/asrStore'
@@ -17,7 +17,7 @@ export const WebSocketProvider = ({ children }) => {
 
   // 获取用户信息和其他 context
   const { currentUser } = useUserAuthStore()
-  const { setWebSocketRef, showNotification, updateConversationStage, currentVoice, currentSpeed } = useVoice()
+  const { setWebSocketRef, showNotification, updateConversationStage, currentVoice, currentSpeed } = useVoiceStore()
   const {
     createNewBotMessageForWebSocket,
     appendToBotMessage,

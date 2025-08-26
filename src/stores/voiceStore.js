@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react'
+import { create } from 'zustand'
 
 // 音色名称映射
 const voiceNames = {
@@ -22,18 +22,37 @@ const stageNames = {
   'love': '恋爱阶段'
 }
 
-// 创建 Context
-const VoiceContext = createContext()
+// 获取语速描述
+const getSpeedDescription = (speed) => {
+  if (speed < 0.8) {
+    return '慢速'
+  } else if (speed > 1.2) {
+    return '快速'
+  } else {
+    return '正常'
+  }
+}
 
-// Provider 组件
-export const VoiceProvider = ({ children }) => {
-  const [currentVoice, setCurrentVoice] = useState('zh_female_meilinvyou_emo_v2_mars_bigtts')
-  const [currentSpeed, setCurrentSpeed] = useState(1.2)
-  const [currentASR, setCurrentASR] = useState('xfyun')
-  const [toastFunction, setToastFunction] = useState(null)
+// 语音设置状态管理store
+export const useVoiceStore = create((set, get) => ({
+  // ===================
+  // 核心状态
+  // ===================
+  // 当前音色设置
+  currentVoice: 'zh_female_meilinvyou_emo_v2_mars_bigtts',
+  // 当前语速设置
+  currentSpeed: 1.2,
+  // 当前ASR设置
+  currentASR: 'xfyun',
+  // Toast函数引用
+  toastFunction: null,
+  // WebSocket引用
+  wsRef: null,
 
+  // ===================
   // 对话阶段状态
-  const [conversationStage, setConversationStage] = useState({
+  // ===================
+  conversationStage: {
     stage: 'initial_meeting',
     turn_count: 0,
     stage_name: '初识阶段',
@@ -45,17 +64,29 @@ export const VoiceProvider = ({ children }) => {
     },
     info_completion: 0,
     is_manual: false
-  })
-  const [isManualStageControl, setIsManualStageControl] = useState(true)
-  const [manualStage, setManualStage] = useState('')
+  },
+  // 手动阶段控制
+  isManualStageControl: true,
+  manualStage: '',
 
+  // ===================
+  // 常量映射
+  // ===================
+  voiceNames,
+  asrNames,
+  stageNames,
+
+  // ===================
+  // Toast相关方法
+  // ===================
   // 注册Toast函数
-  const registerToast = (toastFn) => {
-    setToastFunction(() => toastFn)
-  }
+  registerToast: (toastFn) => {
+    set({ toastFunction: toastFn })
+  },
 
   // 显示通知的统一方法
-  const showNotification = (title, description, variant = 'default') => {
+  showNotification: (title, description, variant = 'default') => {
+    const { toastFunction } = get()
     if (toastFunction) {
       toastFunction({
         title,
@@ -64,15 +95,17 @@ export const VoiceProvider = ({ children }) => {
         duration: 2000
       })
     }
-  }
+  },
 
-  // WebSocket 引用
-  const [wsRef, setWsRef] = useState(null)
-
-  // 切换音色的方法
-  const changeVoice = (voiceId) => {
-    setCurrentVoice(voiceId)
+  // ===================
+  // 音色相关方法
+  // ===================
+  // 切换音色
+  changeVoice: (voiceId) => {
+    const { wsRef, showNotification } = get()
     const voiceName = voiceNames[voiceId] || '未知音色'
+    
+    set({ currentVoice: voiceId })
     console.log(`🎵 音色已切换为: ${voiceName} (${voiceId})`)
 
     // 显示通知
@@ -83,19 +116,25 @@ export const VoiceProvider = ({ children }) => {
       wsRef.send(JSON.stringify({
         type: 'change_voice',
         voice: voiceId
-      }));
-      console.log(`📤 音色切换请求已发送: ${voiceId}`);
+      }))
+      console.log(`📤 音色切换请求已发送: ${voiceId}`)
     }
-  }
+  },
 
   // 获取当前音色名称
-  const getCurrentVoiceName = () => {
+  getCurrentVoiceName: () => {
+    const { currentVoice } = get()
     return voiceNames[currentVoice] || '未知音色'
-  }
+  },
 
-  // 切换语速的方法
-  const changeSpeed = (speed) => {
-    setCurrentSpeed(speed)
+  // ===================
+  // 语速相关方法
+  // ===================
+  // 切换语速
+  changeSpeed: (speed) => {
+    const { wsRef, showNotification } = get()
+    
+    set({ currentSpeed: speed })
     console.log(`🎚️ 语速已调节为: ${speed.toFixed(1)}x`)
 
     // 显示通知
@@ -107,26 +146,23 @@ export const VoiceProvider = ({ children }) => {
       wsRef.send(JSON.stringify({
         type: 'change_speed',
         speed: speed
-      }));
-      console.log(`📤 语速调节请求已发送: ${speed}`);
+      }))
+      console.log(`📤 语速调节请求已发送: ${speed}`)
     }
-  }
+  },
 
   // 获取语速描述
-  const getSpeedDescription = (speed) => {
-    if (speed < 0.8) {
-      return '慢速'
-    } else if (speed > 1.2) {
-      return '快速'
-    } else {
-      return '正常'
-    }
-  }
+  getSpeedDescription,
 
-  // 切换ASR的方法
-  const changeASR = (asrId) => {
-    setCurrentASR(asrId)
+  // ===================
+  // ASR相关方法
+  // ===================
+  // 切换ASR
+  changeASR: (asrId) => {
+    const { wsRef, showNotification } = get()
     const asrName = asrNames[asrId] || '未知ASR'
+    
+    set({ currentASR: asrId })
     console.log(`🎤 ASR已切换为: ${asrName} (${asrId})`)
 
     // 显示通知
@@ -137,38 +173,48 @@ export const VoiceProvider = ({ children }) => {
       wsRef.send(JSON.stringify({
         type: 'change_asr',
         asr_type: asrId
-      }));
-      console.log(`📤 ASR切换请求已发送: ${asrId}`);
+      }))
+      console.log(`📤 ASR切换请求已发送: ${asrId}`)
     }
-  }
+  },
 
   // 获取当前ASR名称
-  const getCurrentASRName = () => {
+  getCurrentASRName: () => {
+    const { currentASR } = get()
     return asrNames[currentASR] || '未知ASR'
-  }
+  },
 
-  // 更新对话阶段信息（其他组件会调用）
-  const updateConversationStage = (stageInfo) => {
+  // ===================
+  // 对话阶段相关方法
+  // ===================
+  // 更新对话阶段信息
+  updateConversationStage: (stageInfo) => {
     try {
       console.log('🔧 updateConversationStage 被调用，参数:', stageInfo)
 
-      setConversationStage(prev => ({
-        ...prev,
-        ...stageInfo
+      set((state) => ({
+        conversationStage: {
+          ...state.conversationStage,
+          ...stageInfo
+        }
       }))
 
       console.log('✅ 对话阶段信息已更新')
     } catch (error) {
       console.error('❌ 更新对话阶段信息失败:', error)
     }
-  }
+  },
 
   // 手动切换对话阶段
-  const changeStage = (selectedStage) => {
-    setIsManualStageControl(false)
-    setManualStage(selectedStage)
-
+  changeStage: (selectedStage) => {
+    const { wsRef, showNotification } = get()
     const stageName = stageNames[selectedStage] || selectedStage
+    
+    set({
+      isManualStageControl: false,
+      manualStage: selectedStage
+    })
+    
     console.log(`🎛️ 手动设置对话阶段为: ${selectedStage}`)
 
     // 显示通知
@@ -179,67 +225,28 @@ export const VoiceProvider = ({ children }) => {
       wsRef.send(JSON.stringify({
         type: 'manual_stage_change',
         stage: selectedStage
-      }));
-      console.log(`📤 手动阶段调节请求已发送: ${selectedStage}`);
+      }))
+      console.log(`📤 手动阶段调节请求已发送: ${selectedStage}`)
     }
-  }
+  },
 
   // 获取当前阶段名称
-  const getCurrentStageName = () => {
+  getCurrentStageName: () => {
+    const { conversationStage } = get()
     return stageNames[conversationStage.stage_name] || '未知阶段'
-  }
+  },
 
-  // WebSocket 相关方法
-  const setWebSocketRef = (ws) => {
-    setWsRef(ws)
-  }
+  // ===================
+  // WebSocket相关方法
+  // ===================
+  // 设置WebSocket引用
+  setWebSocketRef: (ws) => {
+    set({ wsRef: ws })
+  },
 
-  const getWebSocketRef = () => {
+  // 获取WebSocket引用
+  getWebSocketRef: () => {
+    const { wsRef } = get()
     return wsRef
   }
-
-  const value = {
-    currentVoice,
-    voiceNames,
-    changeVoice,
-    getCurrentVoiceName,
-    currentSpeed,
-    changeSpeed,
-    getSpeedDescription,
-    currentASR,
-    asrNames,
-    changeASR,
-    getCurrentASRName,
-    registerToast,
-    showNotification,
-    // 对话阶段相关
-    conversationStage,
-    stageNames,
-    updateConversationStage,
-    changeStage,
-    getCurrentStageName,
-    isManualStageControl,
-    manualStage,
-    // WebSocket 相关
-    setWebSocketRef,
-    getWebSocketRef,
-    wsRef
-  }
-
-  return (
-    <VoiceContext.Provider value={value}>
-      {children}
-    </VoiceContext.Provider>
-  )
-}
-
-// 自定义 Hook
-export const useVoice = () => {
-  const context = useContext(VoiceContext)
-  if (!context) {
-    throw new Error('useVoice must be used within a VoiceProvider')
-  }
-  return context
-}
-
-export default VoiceContext
+}))

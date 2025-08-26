@@ -1,5 +1,5 @@
 import {useState, useEffect, useRef} from 'react'
-import {VoiceProvider, useVoice} from './contexts/VoiceContext'
+import {useVoiceStore} from './stores/voiceStore'
 import {WebSocketProvider} from './contexts/WebSocketContext'
 import {ToastProvider, useToast} from './components/ui/toast'
 import {useUserAuthStore} from './stores/userAuthStore'
@@ -56,7 +56,7 @@ const AppContent = () => {
   // 获取用户认证初始化函数
   const initializeUserSystem = useUserAuthStore(state => state.initializeUserSystem)
   const {width, height} = useViewport()
-  const {registerToast, changeStage} = useVoice()
+  const {registerToast, changeStage} = useVoiceStore()
   const {addToast} = useToast()
   const hasInitialized = useRef(false)
 
@@ -157,13 +157,11 @@ const AppContent = () => {
 // 主App组件
 function App() {
   return (
-    <VoiceProvider>
-      <WebSocketProvider>
-        <ToastProvider>
-          <AppContent/>
-        </ToastProvider>
-      </WebSocketProvider>
-    </VoiceProvider>
+    <WebSocketProvider>
+      <ToastProvider>
+        <AppContent/>
+      </ToastProvider>
+    </WebSocketProvider>
   )
 }
 export default App

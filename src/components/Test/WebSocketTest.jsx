@@ -1,6 +1,6 @@
 import React from 'react'
 import { WebSocketProvider } from '../../contexts/WebSocketContext'
-import { VoiceProvider } from '../../contexts/VoiceContext'
+
 import { Button } from '../ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 
@@ -51,11 +51,9 @@ const WebSocketTestContent = () => {
 
 const WebSocketTest = () => {
   return (
-    <VoiceProvider>
-      <WebSocketProvider>
-        <WebSocketTestContent />
-      </WebSocketProvider>
-    </VoiceProvider>
+    <WebSocketProvider>
+      <WebSocketTestContent />
+    </WebSocketProvider>
   )
 }
 

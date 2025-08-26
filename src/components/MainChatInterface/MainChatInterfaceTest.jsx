@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { VoiceProvider } from '../../contexts/VoiceContext'
+
 import { WebSocketProvider } from '../../contexts/WebSocketContext'
 import MainChatInterface from '../MainChatInterface'
 import { Button } from '../ui/button'
@@ -120,18 +120,16 @@ const MainChatInterfaceTest = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0 h-[calc(100%-4rem)]">
-              <VoiceProvider>
-                <WebSocketProvider>
-                  <MainChatInterface
-                    enableSearch={true}
-                    enableFileUpload={true}
-                    enableASR={true}
-                    onError={addError}
-                    onNotification={addNotification}
+              <WebSocketProvider>
+                <MainChatInterface
+                  enableSearch={true}
+                  enableFileUpload={true}
+                  enableASR={true}
+                  onError={addError}
+                  onNotification={addNotification}
                     className="h-full rounded-none"
                   />
                 </WebSocketProvider>
-              </VoiceProvider>
             </CardContent>
           </Card>
         </div>

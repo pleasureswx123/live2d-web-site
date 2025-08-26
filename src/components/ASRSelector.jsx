@@ -1,4 +1,4 @@
-import { useVoice } from '../contexts/VoiceContext'
+import { useVoiceStore } from '../stores/voiceStore'
 import {
   Select,
   SelectContent,
@@ -8,7 +8,7 @@ import {
 } from './ui/select'
 
 const ASRSelector = () => {
-  const { currentASR, asrNames, changeASR, getCurrentASRName } = useVoice()
+  const { currentASR, asrNames, changeASR, getCurrentASRName } = useVoiceStore()
 
   // 处理ASR切换
   const handleASRChange = (selectedASR) => {

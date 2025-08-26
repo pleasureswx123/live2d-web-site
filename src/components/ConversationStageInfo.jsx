@@ -1,7 +1,7 @@
-import { useVoice } from '../contexts/VoiceContext'
+import { useVoiceStore } from '../stores/voiceStore'
 
 const ConversationStageInfo = () => {
-  const { conversationStage } = useVoice()
+  const { conversationStage } = useVoiceStore()
 
   return (
     <div className="activity-section  p-4 shadow-lg rounded-xl">

@@ -1,4 +1,4 @@
-import { useVoice } from '../contexts/VoiceContext'
+import { useVoiceStore } from '../stores/voiceStore'
 import {
   Select,
   SelectContent,
@@ -8,7 +8,7 @@ import {
 } from './ui/select'
 
 const VoiceSelector = () => {
-  const { currentVoice, voiceNames, changeVoice, getCurrentVoiceName } = useVoice()
+  const { currentVoice, voiceNames, changeVoice, getCurrentVoiceName } = useVoiceStore()
 
   // 处理音色切换
   const handleVoiceChange = (selectedVoice) => {

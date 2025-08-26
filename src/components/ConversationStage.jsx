@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useVoice } from '../contexts/VoiceContext'
+import { useVoiceStore } from '../stores/voiceStore'
 import {
   Select,
   SelectContent,
@@ -15,7 +15,7 @@ const ConversationStage = () => {
     changeStage,
     getCurrentStageName,
     isManualStageControl
-  } = useVoice()
+  } = useVoiceStore()
 
   // 处理阶段切换
   const handleStageChange = (selectedStage) => {

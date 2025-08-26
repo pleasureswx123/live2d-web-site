@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { VoiceProvider } from '../contexts/VoiceContext'
+
 import { WebSocketProvider } from '../contexts/WebSocketContext'
 import MainChatInterface from './MainChatInterface'
 import { Button } from './ui/button'
@@ -55,7 +55,7 @@ const ChatTest = () => {
   // 运行基础测试
   const runBasicTests = () => {
     addTestResult('组件渲染', true, 'MainChatInterface 组件成功渲染')
-    addTestResult('Provider包装', true, 'VoiceProvider 和 WebSocketProvider 正常')
+    addTestResult('Provider包装', true, 'WebSocketProvider 正常')
     addTestResult('状态管理', true, 'Zustand stores 连接正常')
     addTestResult('UI组件', true, '所有UI组件加载成功')
   }
@@ -101,18 +101,16 @@ const ChatTest = () => {
               <CardTitle>聊天界面测试</CardTitle>
             </CardHeader>
             <CardContent className="p-0 h-[calc(100%-4rem)]">
-              <VoiceProvider>
-                <WebSocketProvider>
-                  <MainChatInterface
-                    enableSearch={true}
-                    enableFileUpload={true}
-                    enableASR={true}
-                    onError={handleError}
-                    onNotification={handleNotification}
-                    className="h-full rounded-none"
-                  />
-                </WebSocketProvider>
-              </VoiceProvider>
+              <WebSocketProvider>
+                <MainChatInterface
+                  enableSearch={true}
+                  enableFileUpload={true}
+                  enableASR={true}
+                  onError={handleError}
+                  onNotification={handleNotification}
+                  className="h-full rounded-none"
+                />
+              </WebSocketProvider>
             </CardContent>
           </Card>
         </div>

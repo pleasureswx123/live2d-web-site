@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { useVoice } from '../contexts/VoiceContext'
+import { useVoiceStore } from '../stores/voiceStore'
 import { Slider } from './ui/slider'
 
 const SpeedControl = () => {
-  const { currentSpeed, changeSpeed } = useVoice()
+  const { currentSpeed, changeSpeed } = useVoiceStore()
   const [displaySpeed, setDisplaySpeed] = useState(currentSpeed)
 
   // 处理滑块变化
