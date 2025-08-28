@@ -13,6 +13,7 @@ import { FileUploadButton, FilePreview } from './FileUpload'
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
 import { Send, Paperclip, Mic } from 'lucide-react'
+import ConnectionStatusIndicator from './ConnectionStatusIndicator'
 
 /**
  * 完全可用的主聊天界面组件
@@ -487,29 +488,7 @@ const WorkingChatInterface = ({
               {/* 左侧状态信息 */}
               <div className="flex items-center space-x-4 text-xs">
                 {/* 连接状态 */}
-                <div className="flex items-center space-x-1.5">
-                  <div className={`w-2 h-2 rounded-full ${
-                    connectionStatus === 'connected'
-                      ? 'bg-green-500'
-                      : connectionStatus === 'connecting'
-                      ? 'bg-yellow-500 animate-pulse'
-                      : 'bg-red-500'
-                  }`} />
-                  <span className={`${
-                    connectionStatus === 'connected'
-                      ? 'text-green-600'
-                      : connectionStatus === 'connecting'
-                      ? 'text-yellow-600'
-                      : 'text-red-600'
-                  }`}>
-                    {connectionStatus === 'connected'
-                      ? '已连接'
-                      : connectionStatus === 'connecting'
-                      ? '连接中...'
-                      : '连接断开'
-                    }
-                  </span>
-                </div>
+                <ConnectionStatusIndicator connectionStatus={connectionStatus} />
 
                 {/* ASR状态 */}
                 {enableASR && (
