@@ -50,36 +50,13 @@ export const useTTSStore = create((set, get) => ({
     'neutral': ['微笑', '温柔', '好的', '嗯好', '可以', '没问题', '谢谢', '你好', '再见', '嗯', '好的', '行', '可以'],
     'wenroudexiao': ['温柔的笑', '甜甜的笑', '暖暖的笑', '温柔', '甜甜', '暖暖']
   },
-  // WebSocket引用
-  wsRef: null,
-  // 判断wsRef是否已打开
-  isWsOpen: () => {
-    const {wsRef} = get();
-    return wsRef && wsRef.readyState === WebSocket.OPEN
-  },
-  // 封装wsRef.send方法
-  sendWsMessage: (message) => {
-    return new Promise((resolve, reject) => {
-      const {wsRef, isWsOpen} = get()
-      if (isWsOpen()) {
-        try {
-          wsRef.send(JSON.stringify(message))
-          resolve(true)
-        } catch (error) {
-          console.error('❌ 发送WebSocket消息失败:', error)
-          reject(error)
-        }
-      } else {
-        const error = new Error('WebSocket连接未打开')
-        console.error('❌ WebSocket连接未打开，无法发送消息')
-        reject(error)
-      }
-    })
-  },
-  // 设置WebSocket引用
-  setWebSocketRef: (ws) => {
-    set({wsRef: ws});
-  },
+
+  // ===================
+  // WebSocket相关方法
+  // ===================
+  sendMessage: null,
+  setSendMessage: (fn) => set({ sendMessage: fn }),
+
   // 停止当前播放的音频
   stopCurrentAudio: () => {
     const {audio} = get()
@@ -398,7 +375,7 @@ export const useTTSStore = create((set, get) => ({
   },
   // 检查所有音频播放是否完成
   checkAllAudioPlaybackComplete: () => {
-    const {audio, sendWsMessage} = get()
+    const {audio, sendMessage} = get()
     console.log('🎵 检查音频播放完成状态:', {
       queueLength: audio.audioQueue.length,
       bufferSize: audio.orderedAudioBuffer.size,
@@ -413,10 +390,7 @@ export const useTTSStore = create((set, get) => ({
       get().cleanupAllResources();
       // 可以在这里添加完成回调
       if (isProactiveChatEnabled) {
-        sendWsMessage({
-          type: 'audio_playback_complete',
-          message: '音频播放完成'
-        })
+        sendMessage({type: 'audio_playback_complete', message: '音频播放完成'})
       }
     }
   },

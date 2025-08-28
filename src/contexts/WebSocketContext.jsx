@@ -41,7 +41,7 @@ export const WebSocketProvider = ({ children }) => {
       setConnectionStatus('connected')
       wsRef.current = ws
       useVoiceStore.getState().setSendMessage(sendMessage)
-      useTTSStore.getState().setWebSocketRef(ws)
+      useTTSStore.getState().setSendMessage(sendMessage)
       useASRStore.getState().setWebSocketRef(ws)
       // 发送用户初始化消息
       if (curUser?.id) {
@@ -67,7 +67,7 @@ export const WebSocketProvider = ({ children }) => {
       setConnectionStatus('disconnected')
       wsRef.current = null
       useVoiceStore.getState().setSendMessage(null)
-      useTTSStore.getState().setWebSocketRef(null)
+      useTTSStore.getState().setSendMessage(null)
       useASRStore.getState().setWebSocketRef(null)
       // 5秒后重连
       setTimeout(() => {
@@ -88,7 +88,7 @@ export const WebSocketProvider = ({ children }) => {
       wsRef.current.close()
       wsRef.current = null
       useVoiceStore.getState().setSendMessage(null)
-      useTTSStore.getState().setWebSocketRef(null)
+      useTTSStore.getState().setSendMessage(null)
       useASRStore.getState().setWebSocketRef(null)
       setConnectionStatus('disconnected')
       console.log('🔌 WebSocket连接已手动断开')
