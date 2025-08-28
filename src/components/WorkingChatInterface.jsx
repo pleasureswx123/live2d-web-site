@@ -14,6 +14,7 @@ import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
 import { Send, Paperclip, Mic } from 'lucide-react'
 import ConnectionStatusIndicator from './ConnectionStatusIndicator'
+import ASRStatusIndicator from './ASRStatusIndicator'
 
 /**
  * 完全可用的主聊天界面组件
@@ -492,29 +493,10 @@ const WorkingChatInterface = ({
 
                 {/* ASR状态 */}
                 {enableASR && (
-                  <div className="flex items-center space-x-1.5">
-                    <div className={`w-2 h-2 rounded-full ${
-                      recording.isSpaceKeyActive || spaceKey.isPressed
-                        ? 'bg-red-500 animate-pulse'
-                        : asrConnection.isConnected
-                        ? 'bg-green-500'
-                        : 'bg-gray-400'
-                    }`} />
-                    <span className={`${
-                      recording.isSpaceKeyActive || spaceKey.isPressed
-                        ? 'text-red-600'
-                        : asrConnection.isConnected
-                        ? 'text-green-600'
-                        : 'text-gray-500'
-                    }`}>
-                      {recording.isSpaceKeyActive || spaceKey.isPressed
-                        ? '录音中'
-                        : asrConnection.isConnected
-                        ? '语音就绪'
-                        : '语音未连接'
-                      }
-                    </span>
-                  </div>
+                  <ASRStatusIndicator
+                    isConnected={asrConnection.isConnected}
+                    isRecording={recording.isSpaceKeyActive || spaceKey.isPressed}
+                  />
                 )}
               </div>
 
@@ -522,7 +504,7 @@ const WorkingChatInterface = ({
               <div className="hidden sm:flex items-center space-x-3 text-xs text-gray-500">
                 {enableASR && asrConnection.isConnected && (
                   <div className="flex items-center space-x-1.5">
-                    <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">Space</kbd>
+                    <kbd className="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">Space</kbd>
                     <span>长按语音输入</span>
                   </div>
                 )}
