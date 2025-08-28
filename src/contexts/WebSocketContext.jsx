@@ -40,7 +40,7 @@ export const WebSocketProvider = ({ children }) => {
       console.log('✅ WebSocket连接已建立')
       setConnectionStatus('connected')
       wsRef.current = ws
-      useVoiceStore.getState().setWebSocketRef(ws)
+      useVoiceStore.getState().setSendMessage(sendMessage)
       useTTSStore.getState().setWebSocketRef(ws)
       useASRStore.getState().setWebSocketRef(ws)
       // 发送用户初始化消息
@@ -66,7 +66,7 @@ export const WebSocketProvider = ({ children }) => {
       console.log('🔌 WebSocket连接已关闭')
       setConnectionStatus('disconnected')
       wsRef.current = null
-      useVoiceStore.getState().setWebSocketRef(null)
+      useVoiceStore.getState().setSendMessage(null)
       useTTSStore.getState().setWebSocketRef(null)
       useASRStore.getState().setWebSocketRef(null)
       // 5秒后重连
@@ -87,7 +87,7 @@ export const WebSocketProvider = ({ children }) => {
     if (wsRef.current) {
       wsRef.current.close()
       wsRef.current = null
-      useVoiceStore.getState().setWebSocketRef(null)
+      useVoiceStore.getState().setSendMessage(null)
       useTTSStore.getState().setWebSocketRef(null)
       useASRStore.getState().setWebSocketRef(null)
       setConnectionStatus('disconnected')
