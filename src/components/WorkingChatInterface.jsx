@@ -12,8 +12,9 @@ import { FileUploadButton, FilePreview } from './FileUpload'
 
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
-import { Send, Paperclip, Mic } from 'lucide-react'
+import { Paperclip, Mic } from 'lucide-react'
 import ChatStatusBar from './ChatStatusBar'
+import SendButton from './SendButton'
 
 /**
  * 完全可用的主聊天界面组件
@@ -460,26 +461,11 @@ const WorkingChatInterface = ({
                 </div>
 
                 {/* 发送按钮 */}
-                <div className="relative group">
-                  <Button
-                    onClick={handleSendMessage}
-                    disabled={(!textarea.message.trim() && !selectedFile) || textarea.isSending || connectionStatus !== 'connected'}
-                    className={`p-2.5 rounded-lg transition-all duration-200 transform hover:scale-105 active:scale-95 ${
-                      (!textarea.message.trim() && !selectedFile) || textarea.isSending || connectionStatus !== 'connected'
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed hover:scale-100'
-                        : 'bg-blue-500 text-white hover:bg-blue-600 shadow-sm hover:shadow-md'
-                    }`}
-                  >
-                    {textarea.isSending ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                  </Button>
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                    {textarea.isSending ? '发送中...' : '发送消息'}
-                  </div>
-                </div>
+                <SendButton
+                  onClick={handleSendMessage}
+                  disabled={(!textarea.message.trim() && !selectedFile) || textarea.isSending || connectionStatus !== 'connected'}
+                  isSending={textarea.isSending}
+                />
               </div>
             </div>
 
