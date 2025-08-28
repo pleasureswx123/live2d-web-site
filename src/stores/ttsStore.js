@@ -408,7 +408,7 @@ export const useTTSStore = create((set, get) => ({
     if (audio.audioQueue.length === 0 && audio.orderedAudioBuffer.size === 0 &&
       audio.isTTSGenerationComplete && !audio.isPlayingQueue) {
       // 实时获取最新的主动对话状态
-      const {isProactiveChatEnabled} = useProactiveChatStore.getState();
+      const isProactiveChatEnabled = useProactiveChatStore.getState().getProactiveChatStatus();
       console.log('✅ 所有音频播放完成', isProactiveChatEnabled)
       get().cleanupAllResources();
       // 可以在这里添加完成回调

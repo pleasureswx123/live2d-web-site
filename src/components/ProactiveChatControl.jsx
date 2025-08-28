@@ -6,7 +6,7 @@ import { useEffect } from 'react'
 import { useWebSocket } from '../contexts/WebSocketContext'
 
 const ProactiveChatControl = () => {
-  const { wsRef } = useWebSocket()
+  const { sendMessage } = useWebSocket()
   const {
     silenceTimeout,
     isProactiveChatEnabled,
@@ -31,12 +31,11 @@ const ProactiveChatControl = () => {
   useEffect(() => { setTempTimeout(silenceTimeout) }, [silenceTimeout])
 
   const toggleProactive = () => {
-    if (!isProactiveChatEnabled && wsRef && wsRef.readyState === WebSocket.OPEN) {
-      wsRef.send(JSON.stringify({
-        type: 'audio_playback_complete',
-        message: '音频播放完成'
-      }));
-    }
+    const isProactiveChatEnabled = useProactiveChatStore.getState().getProactiveChatStatus();
+    !isProactiveChatEnabled && sendMessage({
+      type: 'audio_playback_complete',
+      message: '音频播放完成'
+    })
     setProactiveChat(!isProactiveChatEnabled)
   }
 
