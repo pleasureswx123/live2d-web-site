@@ -15,6 +15,7 @@ import { Textarea } from './ui/textarea'
 import { Paperclip, Mic } from 'lucide-react'
 import ChatStatusBar from './ChatStatusBar'
 import SendButton from './SendButton'
+import CharacterCounter from './CharacterCounter'
 
 /**
  * 完全可用的主聊天界面组件
@@ -437,27 +438,12 @@ const WorkingChatInterface = ({
                     className="w-full min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent focus:outline-none focus:ring-0 placeholder:text-gray-400 text-gray-900"
                     disabled={textarea.isSending}
                   />
-
-                  {/* 字符计数和识别结果 */}
-                  <div className="absolute bottom-1 right-1 flex items-center space-x-2">
-                    {/* 实时识别结果预览 */}
-                    {recognition.currentText && (recording.isSpaceKeyActive || spaceKey.isPressed) && (
-                      <div className="px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded-md max-w-32 truncate">
-                        {recognition.currentText}
-                      </div>
-                    )}
-
-                    {/* 字符计数 */}
-                    <div className={`text-xs transition-colors ${
-                      textarea.message.length > maxMessageLength * 0.9
-                        ? 'text-red-500'
-                        : textarea.message.length > maxMessageLength * 0.7
-                        ? 'text-orange-500'
-                        : 'text-gray-400'
-                    }`}>
-                      {textarea.message.length}/{maxMessageLength}
-                    </div>
-                  </div>
+                                      {/* 字符计数 */}
+                  <CharacterCounter
+                    currentLength={textarea.message.length}
+                    maxLength={maxMessageLength}
+                    className="absolute bottom-1 right-1 flex items-center"
+                  />
                 </div>
 
                 {/* 发送按钮 */}
