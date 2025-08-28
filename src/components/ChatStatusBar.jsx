@@ -9,10 +9,12 @@ import ASRStatusIndicator from './ASRStatusIndicator'
 const ChatStatusBar = ({ 
   connectionStatus,
   enableASR = false,
-  isASRConnected = false,
   isRecording,
   className = ''
 }) => {
+  // ASR连接状态完全依赖于WebSocket连接状态
+  const isASRConnected = connectionStatus === 'connected'
+
   return (
     <div className={`flex items-center justify-between mt-2 px-1 ${className}`}>
       {/* 左侧状态信息 */}

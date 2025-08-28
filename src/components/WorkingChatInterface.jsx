@@ -487,7 +487,6 @@ const WorkingChatInterface = ({
             <ChatStatusBar
               connectionStatus={connectionStatus}
               enableASR={enableASR}
-              isASRConnected={asrConnection.isConnected}
               isRecording={recording.isSpaceKeyActive || spaceKey.isPressed}
             />
           </div>
