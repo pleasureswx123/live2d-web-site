@@ -28,8 +28,8 @@ const UserBasicInfo = ({ user, session, ...props }) => {
       </Avatar>
 
       {/* 用户信息 */}
-      <div className="flex-1">
-        <h3 className="font-semibold text-foreground text-lg">{user.name}</h3>
+      <div className="flex-1 min-w-0">
+        <h3 className="font-semibold text-foreground text-lg truncate">{user.name}</h3>
         <p className="text-sm text-muted-foreground truncate">ID: {user.id}</p>
       </div>
 
