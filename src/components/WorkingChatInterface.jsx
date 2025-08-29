@@ -1,5 +1,4 @@
-import React, {useEffect} from 'react'
-import {useChatMessagesStore} from '../stores/chatMessagesStore'
+import React from 'react'
 import {ChatHeader} from './ChatHeader'
 import {ChatMessages} from './ChatMessages'
 import ChatInputArea from './ChatInputArea'
@@ -16,12 +15,6 @@ const WorkingChatInterface = ({
                                 placeholder = "发送消息给悠悠...",
                                 ...props
                               }) => {
-
-  // 监听消息变化，自动滚动
-  useEffect(() => {
-    const { scrollToBottom } = useChatMessagesStore.getState()
-    scrollToBottom()
-  }, [])
   return (
     <div
       className={`working-chat-interface flex flex-col h-full bg-background ${className}`}
