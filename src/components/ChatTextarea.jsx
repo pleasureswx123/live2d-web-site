@@ -35,12 +35,6 @@ const ChatTextarea = ({
     }
   }, [])
   
-  // 处理输入变化，包含高度调整
-  const handleInputChangeWithResize = useCallback((e) => {
-    handleInputChange(e)
-    // 使用setTimeout确保DOM更新后再调整高度
-    setTimeout(autoResizeTextarea, 0)
-  }, [handleInputChange, autoResizeTextarea])
   // 处理键盘事件
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
@@ -51,30 +45,17 @@ const ChatTextarea = ({
     }
   }
 
-  // 监听ASR更新textarea内容的事件
+  // 监听textarea.message变化，自动调整高度
   useEffect(() => {
-    const handleTextareaContentUpdated = () => {
-      // ASR更新内容后，调整textarea高度
-      setTimeout(autoResizeTextarea, 0)
-    }
-    
-    window.addEventListener('textareaContentUpdated', handleTextareaContentUpdated)
-    
-    return () => {
-      window.removeEventListener('textareaContentUpdated', handleTextareaContentUpdated)
-    }
-  }, [autoResizeTextarea])
-  
-  // 组件挂载时的初始化
-  useEffect(() => {
-    autoResizeTextarea()
-  }, [autoResizeTextarea])
+    // 使用setTimeout确保DOM更新后再调整高度
+    setTimeout(autoResizeTextarea, 0)
+  }, [textarea.message, autoResizeTextarea])
   return (
     <div className={`flex-1 relative ${className}`}>
       <Textarea
         ref={textareaRef}
         value={textarea.message}
-        onChange={handleInputChangeWithResize}
+        onChange={handleInputChange}
         onKeyDown={handleKeyDown}
         onCompositionStart={() => setIsComposing(true)}
         onCompositionEnd={() => setIsComposing(false)}

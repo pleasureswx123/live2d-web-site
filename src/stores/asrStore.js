@@ -386,10 +386,6 @@ export const useASRStore = create((set, get) => ({
       const trimmedText = text.trim()
       if (trimmedText) {
         get().setMessage(trimmedText)
-        // 触发textarea更新事件，让组件自己处理高度调整
-        window.dispatchEvent(new CustomEvent('textareaContentUpdated', {
-          detail: { text: trimmedText }
-        }))
       }
     } else {
       // is_final: true 时，只更新当前文本，不覆盖完整文本
@@ -436,10 +432,6 @@ export const useASRStore = create((set, get) => ({
     const trimmed = textToUse.trim()
     if (trimmed) {
       get().setMessage(trimmed)
-      // 触发textarea更新事件，让组件自己处理高度调整
-      window.dispatchEvent(new CustomEvent('textareaContentUpdated', {
-        detail: { text: trimmed }
-      }))
     }
 
     // 重置状态
