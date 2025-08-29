@@ -10,13 +10,7 @@ import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
 import { FileUploadButton, FilePreview } from './FileUpload'
 
-import ChatStatusBar from './ChatStatusBar'
-import SendButton from './SendButton'
-import ChatTextarea from './ChatTextarea'
-import ASRControlIndicator from './ASRControlIndicator'
-import FileUploadControl from './FileUploadControl'
-import RecordingOverlay from './RecordingOverlay'
-import FilePreviewContainer from './FilePreviewContainer'
+import ChatInputArea from './ChatInputArea'
 
 /**
  * 完全可用的主聊天界面组件
@@ -287,74 +281,20 @@ const WorkingChatInterface = ({
         <ChatMessages className="h-full" />
       </div>
 
-      {/* 输入区域 */}
-      <div className="flex-shrink-0 border-t bg-background">
-        <div className="p-4 space-y-3">
-          {/* 文件预览容器 */}
-          <FilePreviewContainer selectedFile={selectedFile} />
-
-          {/* 重构的输入框区域 */}
-          <div className="relative">
-            {/* 主输入容器 */}
-            <div className={`relative bg-white border rounded-xl shadow-sm transition-all duration-200 ${
-              recording.isSpaceKeyActive || spaceKey.isPressed
-                ? 'border-red-300 shadow-red-100'
-                : 'border-gray-200 hover:border-gray-300 focus-within:border-blue-500 focus-within:shadow-blue-100'
-            }`}>
-
-              {/* 录音状态覆盖层 */}
-              <RecordingOverlay
-                isRecording={recording.isSpaceKeyActive || spaceKey.isPressed}
-              />
-
-              {/* 输入框内容区域 */}
-              <div className="flex items-end p-3 space-x-2 sm:space-x-3">
-                {/* 左侧工具栏 */}
-                <div className="flex items-center space-x-1 sm:space-x-2">
-                  {/* 文件上传控制 */}
-                  <FileUploadControl
-                    enableFileUpload={enableFileUpload}
-                    isSending={textarea.isSending}
-                    isUploading={isUploading}
-                  />
-
-                  {/* ASR控制指示器 */}
-                  <ASRControlIndicator
-                    connectionStatus={connectionStatus}
-                    enableASR={enableASR}
-                    isRecording={recording.isSpaceKeyActive || spaceKey.isPressed}
-                  />
-                </div>
-
-                {/* 主输入区域 */}
-                <ChatTextarea
-                  placeholder={placeholder}
-                  maxMessageLength={maxMessageLength}
-                  onSendMessage={handleSendMessage}
-                />
-
-                {/* 发送按钮 */}
-                <SendButton
-                  onClick={handleSendMessage}
-                  disabled={(!textarea.message.trim() && !selectedFile) || textarea.isSending || connectionStatus !== 'connected'}
-                  isSending={textarea.isSending}
-                />
-              </div>
-            </div>
-
-            {/* 底部状态栏 */}
-            <ChatStatusBar
-              connectionStatus={connectionStatus}
-              enableASR={enableASR}
-              isRecording={recording.isSpaceKeyActive || spaceKey.isPressed}
-            />
-
-
-          </div>
-
-
-        </div>
-      </div>
+      {/* 聊天输入区域 */}
+      <ChatInputArea
+        selectedFile={selectedFile}
+        enableFileUpload={enableFileUpload}
+        isUploading={isUploading}
+        enableASR={enableASR}
+        isRecording={recording.isSpaceKeyActive || spaceKey.isPressed}
+        connectionStatus={connectionStatus}
+        placeholder={placeholder}
+        maxMessageLength={maxMessageLength}
+        isSending={textarea.isSending}
+        message={textarea.message}
+        onSendMessage={handleSendMessage}
+      />
     </div>
   )
 }
