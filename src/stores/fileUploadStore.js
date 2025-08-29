@@ -371,6 +371,54 @@ export const useFileUploadStore = create((set, get) => ({
     }
   },
 
+  // 处理文件上传到服务器
+  uploadFileToServer: async () => {
+    const { files, startUpload } = get()
+
+    if (!files.current) {
+      get().setError('没有选择文件', 'upload')
+      return { success: false, url: null }
+    }
+
+    try {
+      const uploadFunction = async (file, progressCallback) => {
+        const formData = new FormData()
+        formData.append('file', file)
+        
+        const endpoint = file.type.startsWith('image/') ? '/upload/image' : '/upload/file'
+        
+        const response = await fetch(`http://localhost:8000${endpoint}`, {
+          method: 'POST',
+          body: formData
+        })
+        
+        const result = await response.json()
+        
+        if (result.success) {
+          return {
+            url: `http://localhost:8000${result.file_url}`,
+            ...result
+          }
+        } else {
+          throw new Error(result.error || '上传失败')
+        }
+      }
+
+      const result = await startUpload(uploadFunction)
+      
+      if (result && result.url) {
+        console.log('✅ 文件上传成功:', result.url)
+        return { success: true, url: result.url }
+      } else {
+        throw new Error('上传结果无效')
+      }
+      
+    } catch (error) {
+      console.error('❌ 文件上传失败:', error)
+      return { success: false, url: null, error: error.message }
+    }
+  },
+
   // 获取当前文件信息
   getCurrentFile: () => {
     const { files } = get()

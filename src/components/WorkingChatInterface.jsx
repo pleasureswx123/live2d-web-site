@@ -25,7 +25,7 @@ const WorkingChatInterface = ({
   // WebSocket和Stores
   const {sendMessage, connectionStatus} = useWebSocket()
   const {messages, addUserMessage, scrollToBottom, showSearchIndicator} = useChatMessagesStore()
-  const {files, ui: fileUI, removeFile, startUpload, getCurrentFile} = useFileUploadStore()
+  const {files, ui: fileUI, removeFile, uploadFileToServer, getCurrentFile} = useFileUploadStore()
   const {
     status: recording,
     connection: asrConnection,
@@ -56,37 +56,7 @@ const WorkingChatInterface = ({
     const isNewsQuery = newsKeywords.some(keyword => text.includes(keyword))
     return hasSearchKeyword || isTimeQuery || isNewsQuery
   }
-  // 处理文件上传
-  const handleFileUpload = async () => {
-    try {
-      const uploadFunction = async (file, progressCallback) => {
-        const formData = new FormData()
-        formData.append('file', file)
-        const endpoint = file.type.startsWith('image/') ? '/upload/image' : '/upload/file'
-        const response = await fetch(`http://localhost:8000${endpoint}`, {
-          method: 'POST',
-          body: formData
-        })
-        const result = await response.json()
-        if (result.success) {
-          return {
-            url: `http://localhost:8000${result.file_url}`,
-            ...result
-          }
-        } else {
-          throw new Error(result.error || '上传失败')
-        }
-      }
-      const {url, success} = await startUpload(uploadFunction)
-      if (success && !!url) {
-        console.log('✅ 文件上传成功:', url)
-        return url
-      }
-    } catch (error) {
-      console.error('❌ 文件上传失败:', error)
-      throw error
-    }
-  }
+
   // 发送消息
   const handleSendMessage = useCallback(async () => {
     // 使用 store 获取最新的 message 值，避免闭包陷阱
@@ -119,9 +89,11 @@ const WorkingChatInterface = ({
       if (currentFile) {
         console.log('📎 处理文件上传:', currentFile.file.name)
         try {
-          const fileUrl = await handleFileUpload()
-          if (fileUrl) {
-            messageData.image_url = fileUrl
+          const { success, url, error } = await uploadFileToServer()
+          if (success && url) {
+            messageData.image_url = url
+          } else {
+            console.error('文件上传失败:', error)
           }
         } catch (error) {
           console.error('文件上传失败，继续发送文字消息:', error)
