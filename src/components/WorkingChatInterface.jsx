@@ -1,5 +1,4 @@
-import React, {useEffect, useCallback} from 'react'
-import {useASRStore} from '../stores/asrStore'
+import React, {useEffect} from 'react'
 import {useChatMessagesStore} from '../stores/chatMessagesStore'
 import {ChatHeader} from './ChatHeader'
 import {ChatMessages} from './ChatMessages'
@@ -17,16 +16,7 @@ const WorkingChatInterface = ({
                                 placeholder = "发送消息给悠悠...",
                                 ...props
                               }) => {
-  // ASR Store
-  const { sendASRMessage } = useASRStore()
 
-  // 发送消息
-  const handleSendMessage = useCallback(async () => {
-    const result = await sendASRMessage()
-    if (!result.success) {
-      console.error('发送消息失败:', result.error)
-    }
-  }, [sendASRMessage])
   // 监听消息变化，自动滚动
   useEffect(() => {
     const { scrollToBottom } = useChatMessagesStore.getState()
@@ -53,7 +43,6 @@ const WorkingChatInterface = ({
         enableASR={enableASR}
         placeholder={placeholder}
         maxMessageLength={maxMessageLength}
-        onSendMessage={handleSendMessage}
       />
     </div>
   )

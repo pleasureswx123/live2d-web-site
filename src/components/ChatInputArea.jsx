@@ -21,7 +21,6 @@ const ChatInputArea = ({
   enableASR = true,
   placeholder = "发送消息给悠悠...",
   maxMessageLength = 1000,
-  onSendMessage,
   className = ""
 }) => {
   // 从stores获取状态
@@ -30,6 +29,7 @@ const ChatInputArea = ({
     status: recording,
     spaceKey,
     getIsConnected,
+    sendASRMessage,
   } = useASRStore()
   const { files, ui: fileUI } = useFileUploadStore()
 
@@ -108,14 +108,14 @@ const ChatInputArea = ({
     const handleASRAutoSend = (event) => {
       console.log('🎤 收到ASR自动发送事件:', event.detail)
       setTimeout(() => {
-        onSendMessage()
+        sendASRMessage()
       }, 100)
     }
     window.addEventListener('asrAutoSend', handleASRAutoSend)
     return () => {
       window.removeEventListener('asrAutoSend', handleASRAutoSend)
     }
-  }, [onSendMessage])
+  }, [sendASRMessage])
   return (
     <div className={`flex-shrink-0 border-t bg-background ${className}`}>
       <div className="p-4 space-y-3">
@@ -157,12 +157,12 @@ const ChatInputArea = ({
               <ChatTextarea
                 placeholder={placeholder}
                 maxMessageLength={maxMessageLength}
-                onSendMessage={onSendMessage}
+                onSendMessage={sendASRMessage}
               />
 
               {/* 发送按钮 */}
               <SendButton
-                onClick={onSendMessage}
+                onClick={sendASRMessage}
                 disabled={(!message.trim() && !selectedFile) || isSending || connectionStatus !== 'connected'}
                 isSending={isSending}
               />
