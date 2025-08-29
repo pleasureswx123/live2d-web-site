@@ -49,7 +49,6 @@ export const useASRStore = create((set, get) => ({
   // textarea状态
   textarea: {
     message: '',
-    isComposing: false,
     isSending: false,
     maxLength: 1000,
     textareaRef: null // textarea的ref引用
@@ -72,15 +71,7 @@ export const useASRStore = create((set, get) => ({
       }
     }))
   },
-  // 设置输入法组合状态
-  setIsComposing: (isComposing) => {
-    set((state) => ({
-      textarea: {
-        ...state.textarea,
-        isComposing
-      }
-    }))
-  },
+
   // 设置发送状态
   setIsSending: (isSending) => {
     set((state) => ({
@@ -111,10 +102,6 @@ export const useASRStore = create((set, get) => ({
         textareaRef: ref
       }
     }))
-  },
-  // 获取textarea引用
-  getTextareaRef: () => {
-    return get().textarea.textareaRef
   },
   // 自动调整textarea高度
   autoResizeTextarea: () => {

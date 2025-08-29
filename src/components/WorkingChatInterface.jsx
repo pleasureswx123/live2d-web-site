@@ -10,12 +10,10 @@ import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
 import { FileUploadButton, FilePreview } from './FileUpload'
 
-import { Button } from './ui/button'
-import { Textarea } from './ui/textarea'
 import { Paperclip, Mic } from 'lucide-react'
 import ChatStatusBar from './ChatStatusBar'
 import SendButton from './SendButton'
-import CharacterCounter from './CharacterCounter'
+import ChatTextarea from './ChatTextarea'
 
 /**
  * 完全可用的主聊天界面组件
@@ -36,29 +34,19 @@ const WorkingChatInterface = ({
   const {files, ui: fileUI, selectFile, removeFile, startUpload, getCurrentFile} = useFileUploadStore()
   const {
     status: recording,
-    recognition,
     connection: asrConnection,
     textarea,
     spaceKey,
     startSpaceKeyASR,
     stopSpaceKeyASR,
-    setIsComposing,
     setIsSending,
     clearMessage,
     getCurrentMessage,
-    setTextareaRef,
-    autoResizeTextarea,
-    handleInputChange,
     startSpaceKeyPress,
     endSpaceKeyPress,
     canStartASR,
     getIsConnected
   } = useASRStore()
-
-  // 稳定的ref回调函数
-  const textareaRefCallback = useCallback((ref) => {
-    setTextareaRef(ref)
-  }, [setTextareaRef])
 
   // 获取当前选中的文件
   const selectedFile = files.current
@@ -87,13 +75,7 @@ const WorkingChatInterface = ({
     useTTSStore.getState().clearAudioQueue()
   }
 
-  // 处理键盘事件
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && !textarea.isComposing) {
-      e.preventDefault()
-      handleSendMessage()
-    }
-  }
+
 
   // 处理文件选择
   const handleFileSelect = (file) => {
@@ -201,8 +183,6 @@ const WorkingChatInterface = ({
       if (currentFile) {
         removeFile()
       }
-      autoResizeTextarea()
-
       // 滚动到底部
       setTimeout(scrollToBottom, 100)
       console.log('✅ 消息已发送')
@@ -211,7 +191,7 @@ const WorkingChatInterface = ({
     } finally {
       setIsSending(false)
     }
-  }, [addUserMessage, removeFile, autoResizeTextarea, scrollToBottom, getCurrentMessage, clearMessage, setIsSending])
+  }, [addUserMessage, removeFile, scrollToBottom, clearMessage, setIsSending])
 
   // 检查是否在输入框中
   const isInInputElement = () => {
@@ -291,12 +271,6 @@ const WorkingChatInterface = ({
       window.removeEventListener('asrAutoSend', handleASRAutoSend)
     }
   }, [handleSendMessage])
-
-  // 组件挂载时的初始化
-  useEffect(() => {
-    autoResizeTextarea()
-  }, [autoResizeTextarea])
-
 
   // 监听消息变化，自动滚动
   useEffect(() => {
@@ -424,27 +398,11 @@ const WorkingChatInterface = ({
                 </div>
 
                 {/* 主输入区域 */}
-                <div className="flex-1 relative">
-                  <Textarea
-                    ref={textareaRefCallback}
-                    value={textarea.message}
-                    onChange={handleInputChange}
-                    onKeyDown={handleKeyDown}
-                    onCompositionStart={() => setIsComposing(true)}
-                    onCompositionEnd={() => setIsComposing(false)}
-                    placeholder={placeholder}
-                    maxLength={maxMessageLength}
-                    rows={1}
-                    className="w-full min-h-[40px] max-h-[120px] resize-none border-0 bg-transparent focus:outline-none focus:ring-0 placeholder:text-gray-400 text-gray-900"
-                    disabled={textarea.isSending}
-                  />
-                                      {/* 字符计数 */}
-                  <CharacterCounter
-                    currentLength={textarea.message.length}
-                    maxLength={maxMessageLength}
-                    className="absolute bottom-1 right-1 flex items-center"
-                  />
-                </div>
+                <ChatTextarea
+                  placeholder={placeholder}
+                  maxMessageLength={maxMessageLength}
+                  onSendMessage={handleSendMessage}
+                />
 
                 {/* 发送按钮 */}
                 <SendButton
