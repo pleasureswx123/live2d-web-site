@@ -118,6 +118,11 @@ export const useTTSStore = create((set, get) => ({
     }))
     console.log('🗑️ 音频队列已清空')
   },
+  // 停止所有TTS音频
+  stopAllTTSAudio: () => {
+    get().stopAllAudio();
+    get().clearAudioQueue()
+  },
   // 表情匹配函数
   matchExpression: (text) => {
     const {EXPRESSION_KEYWORDS} = get()

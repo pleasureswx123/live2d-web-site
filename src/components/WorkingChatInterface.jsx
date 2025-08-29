@@ -56,12 +56,6 @@ const WorkingChatInterface = ({
     const isNewsQuery = newsKeywords.some(keyword => text.includes(keyword))
     return hasSearchKeyword || isTimeQuery || isNewsQuery
   }
-  // 停止所有TTS音频
-  const stopAllTTSAudio = () => {
-    console.log('🛑 打断所有TTS播放')
-    useTTSStore.getState().stopAllAudio()
-    useTTSStore.getState().clearAudioQueue()
-  }
   // 处理文件上传
   const handleFileUpload = async () => {
     try {
@@ -110,7 +104,7 @@ const WorkingChatInterface = ({
     setIsSending(true)
     try {
       // 打断当前TTS播放
-      stopAllTTSAudio()
+      useTTSStore.getState().stopAllTTSAudio()
       // 准备消息数据
       const messageData = {
         type: 'chat',
@@ -180,7 +174,7 @@ const WorkingChatInterface = ({
             console.log('🎤 开始长按空格键ASR')
             startSpaceKeyPress()
             // 停止所有TTS音频
-            stopAllTTSAudio();
+            useTTSStore.getState().stopAllTTSAudio()
             // 开始长按空格键ASR
             startSpaceKeyASR()
             console.log('正在录音，松开空格键结束')
