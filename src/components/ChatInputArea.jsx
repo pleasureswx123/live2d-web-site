@@ -1,6 +1,7 @@
-import React from 'react'
+import React, {useEffect, useCallback} from 'react'
 import {useASRStore} from '../stores/asrStore'
 import {useFileUploadStore} from '../stores/fileUploadStore'
+import {useTTSStore} from '../stores/ttsStore'
 import ChatTextarea from './ChatTextarea'
 import SendButton from './SendButton'
 import ASRControlIndicator from './ASRControlIndicator'
@@ -24,7 +25,12 @@ const ChatInputArea = ({
   className = ""
 }) => {
   // 从stores获取状态
-  const { textarea, status: recording, spaceKey } = useASRStore()
+  const {
+    textarea,
+    status: recording,
+    spaceKey,
+    getIsConnected,
+  } = useASRStore()
   const { files, ui: fileUI } = useFileUploadStore()
 
   const { connectionStatus } = useWebSocket()
@@ -35,6 +41,81 @@ const ChatInputArea = ({
   const isRecording = recording.isSpaceKeyActive || spaceKey.isPressed
   const isSending = textarea.isSending
   const message = textarea.message
+
+  // 检查是否在输入框中
+  const isInInputElement = useCallback(() => {
+    const activeElement = document.activeElement
+    return activeElement && (
+      activeElement.tagName === 'INPUT' ||
+      activeElement.tagName === 'TEXTAREA' ||
+      activeElement.contentEditable === 'true'
+    )
+  }, [])
+
+  // 全局键盘事件监听（长按空格键ASR）
+  useEffect(() => {
+    if (!enableASR) {
+      console.log('🎤 ASR未启用或未连接，跳过键盘事件监听')
+      return
+    }
+    const handleGlobalKeyDown = (event) => {
+      // 只处理空格键且非重复事件
+      if (event.code === 'Space' && !event.repeat && getIsConnected()) {
+        // 检查是否在输入框中
+        if (!isInInputElement()) {
+          event.preventDefault()
+          const {canStartASR, startSpaceKeyPress, startSpaceKeyASR} = useASRStore.getState();
+          // 开始长按空格键ASR
+          if (canStartASR()) {
+            console.log('🎤 开始长按空格键ASR')
+            startSpaceKeyPress()
+            // 停止所有TTS音频
+            useTTSStore.getState().stopAllTTSAudio()
+            // 开始长按空格键ASR
+            startSpaceKeyASR()
+            console.log('正在录音，松开空格键结束')
+          }
+        }
+      }
+    }
+    const handleGlobalKeyUp = (event) => {
+      if (event.code === 'Space') {
+        // 检查是否在输入框中
+        if (!isInInputElement()) {
+          event.preventDefault()
+          // 结束长按空格键ASR
+          const {endSpaceKeyPress, stopSpaceKeyASR, spaceKey} = useASRStore.getState();
+          if (spaceKey.isPressed) {
+            console.log('🎤 结束长按空格键ASR')
+            const duration = endSpaceKeyPress()
+            // 停止长按空格键ASR
+            stopSpaceKeyASR()
+            console.log(`录音完成 (${(duration / 1000).toFixed(1)}秒)`, 'success')
+          }
+        }
+      }
+    }
+    document.addEventListener('keydown', handleGlobalKeyDown)
+    document.addEventListener('keyup', handleGlobalKeyUp)
+    return () => {
+      document.removeEventListener('keydown', handleGlobalKeyDown)
+      document.removeEventListener('keyup', handleGlobalKeyUp)
+    }
+  }, [enableASR, isInInputElement])
+
+  // 监听ASR自动发送事件
+  useEffect(() => {
+    const handleASRAutoSend = (event) => {
+      console.log('🎤 收到ASR自动发送事件:', event.detail)
+      setTimeout(() => {
+        onSendMessage()
+      }, 100)
+    }
+    window.addEventListener('asrAutoSend', handleASRAutoSend)
+    return () => {
+      window.removeEventListener('asrAutoSend', handleASRAutoSend)
+    }
+  }, [onSendMessage])
   return (
     <div className={`flex-shrink-0 border-t bg-background ${className}`}>
       <div className="p-4 space-y-3">
