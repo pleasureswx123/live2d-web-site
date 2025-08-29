@@ -1,13 +1,9 @@
 import React, {useEffect, useCallback} from 'react'
-import {useWebSocket} from '../contexts/WebSocketContext'
-import {useChatMessagesStore} from '../stores/chatMessagesStore'
-import {useFileUploadStore} from '../stores/fileUploadStore'
 import {useASRStore} from '../stores/asrStore'
+import {useChatMessagesStore} from '../stores/chatMessagesStore'
 import {useTTSStore} from '../stores/ttsStore'
-import {useSystemControlStore} from '../stores/systemControlStore'
 import {ChatHeader} from './ChatHeader'
 import {ChatMessages} from './ChatMessages'
-import {FileUploadButton, FilePreview} from './FileUpload'
 import ChatInputArea from './ChatInputArea'
 
 /**
@@ -22,104 +18,25 @@ const WorkingChatInterface = ({
                                 placeholder = "发送消息给悠悠...",
                                 ...props
                               }) => {
-  // WebSocket和Stores
-  const {sendMessage, connectionStatus} = useWebSocket()
-  const {messages, addUserMessage, scrollToBottom, showSearchIndicator} = useChatMessagesStore()
-  const {files, ui: fileUI, removeFile, uploadFileToServer, getCurrentFile} = useFileUploadStore()
+  // ASR Store
   const {
-    status: recording,
-    connection: asrConnection,
-    textarea,
+    getIsConnected,
     spaceKey,
     startSpaceKeyASR,
     stopSpaceKeyASR,
-    setIsSending,
-    clearMessage,
-    getCurrentMessage,
     startSpaceKeyPress,
     endSpaceKeyPress,
     canStartASR,
-    getIsConnected
+    sendASRMessage,
   } = useASRStore()
-  // 获取当前选中的文件
-  const selectedFile = files.current
-  const isUploading = fileUI.isUploading
-  // 搜索关键词配置
-  const searchKeywords = ['搜索', '查找', '查询', '最新', '现在', '今天', '新闻', '什么是', '怎么样', '如何']
-  const timeKeywords = ['现在', '今天', '几号', '时间', '日期']
-  const newsKeywords = ['新闻', '最新', '热点', '时事']
-  // 检测是否需要搜索
-  const shouldTriggerSearch = (text) => {
-    if (!useSystemControlStore.getState().isSearchEnabled || !text) return false
-    const hasSearchKeyword = searchKeywords.some(keyword => text.includes(keyword))
-    const isTimeQuery = timeKeywords.some(keyword => text.includes(keyword))
-    const isNewsQuery = newsKeywords.some(keyword => text.includes(keyword))
-    return hasSearchKeyword || isTimeQuery || isNewsQuery
-  }
 
   // 发送消息
   const handleSendMessage = useCallback(async () => {
-    // 使用 store 获取最新的 message 值，避免闭包陷阱
-    const trimmedMessage = getCurrentMessage().trim()
-    const currentFile = getCurrentFile()
-    // 验证消息内容
-    if (!trimmedMessage && !currentFile) {
-      return
+    const result = await sendASRMessage()
+    if (!result.success) {
+      console.error('发送消息失败:', result.error)
     }
-    // 检查连接状态
-    if (!getIsConnected()) {
-      console.error('聊天错误:', '连接已断开，请等待重连...')
-      return
-    }
-    setIsSending(true)
-    try {
-      // 打断当前TTS播放
-      useTTSStore.getState().stopAllTTSAudio()
-      // 准备消息数据
-      const messageData = {
-        type: 'chat',
-        content: trimmedMessage || ''
-      }
-      // 检测搜索需求
-      if (shouldTriggerSearch(trimmedMessage)) {
-        messageData.search_query = trimmedMessage
-        showSearchIndicator(trimmedMessage)
-      }
-      // 处理文件上传
-      if (currentFile) {
-        console.log('📎 处理文件上传:', currentFile.file.name)
-        try {
-          const { success, url, error } = await uploadFileToServer()
-          if (success && url) {
-            messageData.image_url = url
-          } else {
-            console.error('文件上传失败:', error)
-          }
-        } catch (error) {
-          console.error('文件上传失败，继续发送文字消息:', error)
-        }
-      }
-      // 显示用户消息
-      addUserMessage(trimmedMessage, currentFile?.file)
-      // 发送WebSocket消息
-      const success = sendMessage(messageData)
-      if (!success) {
-        throw new Error('WebSocket消息发送失败')
-      }
-      // 清空输入
-      clearMessage()
-      if (currentFile) {
-        removeFile()
-      }
-      // 滚动到底部
-      setTimeout(scrollToBottom, 100)
-      console.log('✅ 消息已发送')
-    } catch (error) {
-      console.error('❌ 发送消息失败:', error)
-    } finally {
-      setIsSending(false)
-    }
-  }, [addUserMessage, removeFile, scrollToBottom, clearMessage, setIsSending])
+  }, [sendASRMessage])
   // 检查是否在输入框中
   const isInInputElement = () => {
     const activeElement = document.activeElement
@@ -131,13 +48,13 @@ const WorkingChatInterface = ({
   }
   // 全局键盘事件监听（长按空格键ASR）
   useEffect(() => {
-    if (!enableASR || !asrConnection.isConnected) {
+    if (!enableASR) {
       console.log('🎤 ASR未启用或未连接，跳过键盘事件监听')
       return
     }
     const handleGlobalKeyDown = (event) => {
       // 只处理空格键且非重复事件
-      if (event.code === 'Space' && !event.repeat) {
+      if (event.code === 'Space' && !event.repeat && getIsConnected()) {
         // 检查是否在输入框中
         if (!isInInputElement()) {
           event.preventDefault()
@@ -176,7 +93,7 @@ const WorkingChatInterface = ({
       document.removeEventListener('keydown', handleGlobalKeyDown)
       document.removeEventListener('keyup', handleGlobalKeyUp)
     }
-  }, [enableASR, asrConnection.isConnected, canStartASR, startSpaceKeyPress, startSpaceKeyASR, spaceKey.isPressed, endSpaceKeyPress, stopSpaceKeyASR])
+  }, [enableASR, canStartASR, startSpaceKeyPress, startSpaceKeyASR, spaceKey.isPressed, endSpaceKeyPress, stopSpaceKeyASR])
   // 监听ASR自动发送事件
   useEffect(() => {
     const handleASRAutoSend = (event) => {
@@ -192,8 +109,9 @@ const WorkingChatInterface = ({
   }, [handleSendMessage])
   // 监听消息变化，自动滚动
   useEffect(() => {
+    const { scrollToBottom } = useChatMessagesStore.getState()
     scrollToBottom()
-  }, [messages.length])
+  }, [])
   return (
     <div
       className={`working-chat-interface flex flex-col h-full bg-background ${className}`}
@@ -211,16 +129,10 @@ const WorkingChatInterface = ({
 
       {/* 聊天输入区域 */}
       <ChatInputArea
-        selectedFile={selectedFile}
         enableFileUpload={enableFileUpload}
-        isUploading={isUploading}
         enableASR={enableASR}
-        isRecording={recording.isSpaceKeyActive || spaceKey.isPressed}
-        connectionStatus={connectionStatus}
         placeholder={placeholder}
         maxMessageLength={maxMessageLength}
-        isSending={textarea.isSending}
-        message={textarea.message}
         onSendMessage={handleSendMessage}
       />
     </div>

@@ -1,4 +1,6 @@
 import React from 'react'
+import {useASRStore} from '../stores/asrStore'
+import {useFileUploadStore} from '../stores/fileUploadStore'
 import ChatTextarea from './ChatTextarea'
 import SendButton from './SendButton'
 import ASRControlIndicator from './ASRControlIndicator'
@@ -6,32 +8,33 @@ import FileUploadControl from './FileUploadControl'
 import RecordingOverlay from './RecordingOverlay'
 import ChatStatusBar from './ChatStatusBar'
 import FilePreviewContainer from './FilePreviewContainer'
+import {useWebSocket} from "@/contexts/WebSocketContext.jsx";
 
 /**
  * 聊天输入区域组件
  * 包含文件预览、输入框、工具栏和状态栏
  */
 const ChatInputArea = ({
-  // 文件相关
-  selectedFile,
+  // 配置相关
   enableFileUpload = true,
-  isUploading = false,
-  
-  // ASR相关
   enableASR = true,
-  isRecording = false,
-  connectionStatus = 'disconnected',
-  
-  // 输入相关
   placeholder = "发送消息给悠悠...",
   maxMessageLength = 1000,
-  isSending = false,
-  message = "",
-  
-  // 回调函数
   onSendMessage,
   className = ""
 }) => {
+  // 从stores获取状态
+  const { textarea, status: recording, spaceKey } = useASRStore()
+  const { files, ui: fileUI } = useFileUploadStore()
+
+  const { connectionStatus } = useWebSocket()
+
+  // 计算派生状态
+  const selectedFile = files.current
+  const isUploading = fileUI.isUploading
+  const isRecording = recording.isSpaceKeyActive || spaceKey.isPressed
+  const isSending = textarea.isSending
+  const message = textarea.message
   return (
     <div className={`flex-shrink-0 border-t bg-background ${className}`}>
       <div className="p-4 space-y-3">

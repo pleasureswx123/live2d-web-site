@@ -1,4 +1,9 @@
 import {create} from 'zustand'
+import {useChatMessagesStore} from '../stores/chatMessagesStore'
+import {useFileUploadStore} from '../stores/fileUploadStore'
+import {useTTSStore} from '../stores/ttsStore'
+import {useSystemControlStore} from '../stores/systemControlStore'
+
 // ASR语音识别状态管理store - 重构优化版本
 export const useASRStore = create((set, get) => ({
   // ===================
@@ -99,6 +104,105 @@ export const useASRStore = create((set, get) => ({
     const newValue = e.target.value
     get().setMessage(newValue)
   },
+
+  // 发送消息
+  sendASRMessage: async () => {
+    // 获取所有需要的依赖
+    const { addUserMessage, scrollToBottom, showSearchIndicator } = useChatMessagesStore.getState()
+    const { removeFile, uploadFileToServer, getCurrentFile } = useFileUploadStore.getState()
+    const { stopAllTTSAudio } = useTTSStore.getState()
+    const { isSearchEnabled } = useSystemControlStore.getState()
+
+    // 使用 store 获取最新的 message 值，避免闭包陷阱
+    const trimmedMessage = get().getCurrentMessage().trim()
+    const currentFile = getCurrentFile()
+
+    // 验证消息内容
+    if (!trimmedMessage && !currentFile) {
+      return { success: false, error: '消息内容为空' }
+    }
+
+    // 检查连接状态
+    if (!get().getIsConnected()) {
+      console.error('聊天错误:', '连接已断开，请等待重连...')
+      return { success: false, error: '连接已断开，请等待重连...' }
+    }
+
+    get().setIsSending(true)
+
+    try {
+      // 打断当前TTS播放
+      stopAllTTSAudio()
+
+      // 准备消息数据
+      const messageData = {
+        type: 'chat',
+        content: trimmedMessage || ''
+      }
+
+      // 检测搜索需求
+      const searchKeywords = ['搜索', '查找', '查询', '最新', '现在', '今天', '新闻', '什么是', '怎么样', '如何']
+      const timeKeywords = ['现在', '今天', '几号', '时间', '日期']
+      const newsKeywords = ['新闻', '最新', '热点', '时事']
+
+      const shouldTriggerSearch = (text) => {
+        if (!isSearchEnabled || !text) return false
+        const hasSearchKeyword = searchKeywords.some(keyword => text.includes(keyword))
+        const isTimeQuery = timeKeywords.some(keyword => text.includes(keyword))
+        const isNewsQuery = newsKeywords.some(keyword => text.includes(keyword))
+        return hasSearchKeyword || isTimeQuery || isNewsQuery
+      }
+
+      if (shouldTriggerSearch(trimmedMessage)) {
+        messageData.search_query = trimmedMessage
+        showSearchIndicator(trimmedMessage)
+      }
+
+      // 处理文件上传
+      if (currentFile) {
+        console.log('📎 处理文件上传:', currentFile.file.name)
+        try {
+          const { success, url, error } = await uploadFileToServer()
+          if (success && url) {
+            messageData.image_url = url
+          } else {
+            console.error('文件上传失败:', error)
+          }
+        } catch (error) {
+          console.error('文件上传失败，继续发送文字消息:', error)
+        }
+      }
+
+      // 显示用户消息
+      addUserMessage(trimmedMessage, currentFile?.file)
+
+      // 发送WebSocket消息
+      const success = get().sendWebSocketMessage(messageData)
+      if (!success) {
+        throw new Error('WebSocket消息发送失败')
+      }
+
+      // 清空输入
+      get().clearMessage()
+
+      // 移除文件
+      if (currentFile) {
+        removeFile()
+      }
+
+      // 滚动到底部
+      setTimeout(scrollToBottom, 100)
+
+      console.log('✅ 消息已发送')
+      return { success: true }
+
+    } catch (error) {
+      console.error('❌ 发送消息失败:', error)
+      return { success: false, error: error.message }
+    } finally {
+      get().setIsSending(false)
+    }
+  },
   // ===================
   // 空格键相关方法
   // ===================
@@ -153,9 +257,21 @@ export const useASRStore = create((set, get) => ({
     }))
     console.log('🔌 ASR WebSocket连接已设置:', !!ws)
   },
+  sendWebSocketMessage: (message) => {
+    const ws = get().connection.ws;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(message))
+      console.log('📤 WebSocket消息已发送:', message)
+      return true
+    } else {
+      console.warn('⚠️ WebSocket未连接，无法发送消息')
+      return false
+    }
+  },
   // 一个获取 connection的isConnected的 方法
   getIsConnected: () => {
-    return get().connection.isConnected
+    const ws = get().connection.ws;
+    return ws && ws.readyState === WebSocket.OPEN
   },
   // ===================
   // 长按空格键ASR
@@ -193,8 +309,8 @@ export const useASRStore = create((set, get) => ({
   },
   // 停止长按空格键ASR（极简版本）
   stopSpaceKeyASR: async () => {
-    const {status} = get()
-    if (!status.isSpaceKeyActive) {
+    const isSpaceKeyActive = get().status.isSpaceKeyActive
+    if (!isSpaceKeyActive) {
       return
     }
     console.log('🎤 停止长按空格键ASR（极简策略）')
@@ -213,22 +329,18 @@ export const useASRStore = create((set, get) => ({
   },
   // 发送stop_asr到后端
   sendStopASR: () => {
-    const {connection} = get()
-    if (connection.ws && connection.ws.readyState === WebSocket.OPEN) {
-      connection.ws.send(JSON.stringify({
-        type: 'stop_asr',
-        timestamp: Date.now(),
-        mode: 'spacekey'
-      }))
-      console.log('📤 发送stop_asr到后端')
-    }
+    get().sendWebSocketMessage({
+      type: 'stop_asr',
+      timestamp: Date.now(),
+      mode: 'spacekey'
+    })
+    console.log('📤 发送stop_asr到后端')
   },
   // ===================
   // 录音控制
   // ===================
   // 开始录音
   startRecording: async () => {
-    const {connection} = get()
     try {
       console.log('🎤 开始录音')
       // 请求麦克风权限
@@ -248,8 +360,8 @@ export const useASRStore = create((set, get) => ({
       const processor = audioContext.createScriptProcessor(1024, 1, 1)
       // 音频处理
       processor.onaudioprocess = (event) => {
-        const {status, connection} = get()
-        if (!status.isRecording || !connection.ws || connection.ws.readyState !== WebSocket.OPEN) {
+        const {status, getIsConnected} = get()
+        if (!status.isRecording || !getIsConnected()) {
           return
         }
         const inputBuffer = event.inputBuffer
@@ -264,11 +376,11 @@ export const useASRStore = create((set, get) => ({
         const base64String = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)))
         const now = Date.now()
         try {
-          connection.ws.send(JSON.stringify({
+          get().sendWebSocketMessage({
             type: 'audio_chunk',
             audio_data: base64String,
             timestamp: now
-          }))
+          })
           // 更新最后发送时间
           set((state) => ({
             audio: {
@@ -296,16 +408,12 @@ export const useASRStore = create((set, get) => ({
         }
       }))
       // 通知服务器开始ASR
-      if (connection.ws && connection.ws.readyState === WebSocket.OPEN) {
-        connection.ws.send(JSON.stringify({
-          type: 'start_asr',
-          timestamp: Date.now(),
-          mode: get().status.mode
-        }))
-        console.log('📤 发送start_asr消息')
-      } else {
-        throw new Error('WebSocket连接不可用')
-      }
+      get().sendWebSocketMessage({
+        type: 'start_asr',
+        timestamp: Date.now(),
+        mode: get().status.mode
+      })
+      console.log('📤 发送start_asr消息')
     } catch (error) {
       console.error('❌ 启动录音失败:', error)
       throw error
