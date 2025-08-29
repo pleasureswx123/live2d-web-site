@@ -16,6 +16,7 @@ import ChatTextarea from './ChatTextarea'
 import ASRControlIndicator from './ASRControlIndicator'
 import FileUploadControl from './FileUploadControl'
 import RecordingOverlay from './RecordingOverlay'
+import FilePreviewContainer from './FilePreviewContainer'
 
 /**
  * 完全可用的主聊天界面组件
@@ -289,17 +290,8 @@ const WorkingChatInterface = ({
       {/* 输入区域 */}
       <div className="flex-shrink-0 border-t bg-background">
         <div className="p-4 space-y-3">
-          {/* 文件预览 */}
-          {selectedFile && (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3">
-              <FilePreview
-                file={selectedFile}
-                onRemove={removeFile}
-              />
-            </div>
-          )}
-
-
+          {/* 文件预览容器 */}
+          <FilePreviewContainer selectedFile={selectedFile} />
 
           {/* 重构的输入框区域 */}
           <div className="relative">
