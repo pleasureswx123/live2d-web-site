@@ -10,10 +10,11 @@ import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
 import { FileUploadButton, FilePreview } from './FileUpload'
 
-import { Paperclip, Mic } from 'lucide-react'
+import { Paperclip } from 'lucide-react'
 import ChatStatusBar from './ChatStatusBar'
 import SendButton from './SendButton'
 import ChatTextarea from './ChatTextarea'
+import ASRControlIndicator from './ASRControlIndicator'
 
 /**
  * 完全可用的主聊天界面组件
@@ -373,28 +374,12 @@ const WorkingChatInterface = ({
                     </div>
                   )}
 
-                  {/* ASR状态指示器 */}
-                  {enableASR && (
-                    <div className="relative group">
-                      <div className={`p-2 rounded-lg transition-all duration-200 ${
-                        recording.isSpaceKeyActive || spaceKey.isPressed
-                          ? 'bg-red-100 text-red-600'
-                          : asrConnection.isConnected
-                          ? 'bg-green-50 text-green-600'
-                          : 'bg-orange-50 text-orange-600'
-                      }`}>
-                        <Mic className="w-4 h-4" />
-                      </div>
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                        {recording.isSpaceKeyActive || spaceKey.isPressed
-                          ? '正在录音'
-                          : asrConnection.isConnected
-                          ? '语音识别就绪'
-                          : '语音识别未连接'
-                        }
-                      </div>
-                    </div>
-                  )}
+                  {/* ASR控制指示器 */}
+                  <ASRControlIndicator
+                    connectionStatus={connectionStatus}
+                    enableASR={enableASR}
+                    isRecording={recording.isSpaceKeyActive || spaceKey.isPressed}
+                  />
                 </div>
 
                 {/* 主输入区域 */}
@@ -419,6 +404,8 @@ const WorkingChatInterface = ({
               enableASR={enableASR}
               isRecording={recording.isSpaceKeyActive || spaceKey.isPressed}
             />
+
+
           </div>
 
 
