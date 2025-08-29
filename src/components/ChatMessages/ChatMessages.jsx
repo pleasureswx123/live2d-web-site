@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useChatMessagesStore } from '../../stores/chatMessagesStore'
 import { cn } from '../../lib/utils'
 import Message from './Message'
@@ -42,8 +42,8 @@ const ChatMessages = ({
   emptyState,
   ...props
 }) => {
-  const containerRef = React.useRef(null)
-  const [showScrollButton, setShowScrollButton] = React.useState(false)
+  const containerRef = useRef(null)
+  const [showScrollButton, setShowScrollButton] = useState(false)
 
   const {
     messages,
@@ -56,12 +56,12 @@ const ChatMessages = ({
   } = useChatMessagesStore()
 
   // 设置容器引用
-  React.useEffect(() => {
+  useEffect(() => {
     setContainerRef(containerRef)
   }, [setContainerRef])
 
   // 监听滚动事件
-  React.useEffect(() => {
+  useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
@@ -78,7 +78,7 @@ const ChatMessages = ({
   }, [checkScrollPosition, messages.length])
 
   // 监听消息变化，自动滚动
-  React.useEffect(() => {
+  useEffect(() => {
     if (ui.autoScroll && ui.isScrolledToBottom) {
       setTimeout(scrollToBottom, 100)
     }
