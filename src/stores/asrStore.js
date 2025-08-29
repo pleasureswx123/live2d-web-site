@@ -50,8 +50,7 @@ export const useASRStore = create((set, get) => ({
   textarea: {
     message: '',
     isSending: false,
-    maxLength: 1000,
-    textareaRef: null // textarea的ref引用
+    maxLength: 1000
   },
   // 空格键状态
   spaceKey: {
@@ -94,28 +93,11 @@ export const useASRStore = create((set, get) => ({
   getCurrentMessage: () => {
     return get().textarea.message
   },
-  // 设置textarea引用
-  setTextareaRef: (ref) => {
-    set((state) => ({
-      textarea: {
-        ...state.textarea,
-        textareaRef: ref
-      }
-    }))
-  },
-  // 自动调整textarea高度
-  autoResizeTextarea: () => {
-    const textareaRef = get().textarea.textareaRef
-    if (textareaRef && textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px'
-    }
-  },
+
   // 处理输入变化
   handleInputChange: (e) => {
     const newValue = e.target.value
     get().setMessage(newValue)
-    get().autoResizeTextarea()
   },
   // ===================
   // 空格键相关方法
@@ -404,7 +386,10 @@ export const useASRStore = create((set, get) => ({
       const trimmedText = text.trim()
       if (trimmedText) {
         get().setMessage(trimmedText)
-        setTimeout(() => get().autoResizeTextarea(), 0)
+        // 触发textarea更新事件，让组件自己处理高度调整
+        window.dispatchEvent(new CustomEvent('textareaContentUpdated', {
+          detail: { text: trimmedText }
+        }))
       }
     } else {
       // is_final: true 时，只更新当前文本，不覆盖完整文本
@@ -451,7 +436,10 @@ export const useASRStore = create((set, get) => ({
     const trimmed = textToUse.trim()
     if (trimmed) {
       get().setMessage(trimmed)
-      setTimeout(() => get().autoResizeTextarea(), 0)
+      // 触发textarea更新事件，让组件自己处理高度调整
+      window.dispatchEvent(new CustomEvent('textareaContentUpdated', {
+        detail: { text: trimmed }
+      }))
     }
 
     // 重置状态

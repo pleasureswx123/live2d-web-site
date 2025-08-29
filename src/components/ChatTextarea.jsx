@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useState} from 'react'
+import React, {useCallback, useEffect, useState, useRef} from 'react'
 import {useASRStore} from '../stores/asrStore'
 import {Textarea} from './ui/textarea'
 import CharacterCounter from './CharacterCounter'
@@ -17,18 +17,30 @@ const ChatTextarea = ({
                       }) => {
   // 本地状态：输入法组合状态
   const [isComposing, setIsComposing] = useState(false)
+  
+  // textarea引用
+  const textareaRef = useRef(null)
 
   // 从 ASR Store 获取状态和方法
   const {
     textarea,
-    setTextareaRef,
-    autoResizeTextarea,
     handleInputChange,
   } = useASRStore()
-  // 稳定的ref回调函数
-  const textareaRefCallback = useCallback((ref) => {
-    setTextareaRef(ref)
-  }, [setTextareaRef])
+  
+  // 自动调整textarea高度的方法
+  const autoResizeTextarea = useCallback(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px'
+    }
+  }, [])
+  
+  // 处理输入变化，包含高度调整
+  const handleInputChangeWithResize = useCallback((e) => {
+    handleInputChange(e)
+    // 使用setTimeout确保DOM更新后再调整高度
+    setTimeout(autoResizeTextarea, 0)
+  }, [handleInputChange, autoResizeTextarea])
   // 处理键盘事件
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
@@ -39,6 +51,20 @@ const ChatTextarea = ({
     }
   }
 
+  // 监听ASR更新textarea内容的事件
+  useEffect(() => {
+    const handleTextareaContentUpdated = () => {
+      // ASR更新内容后，调整textarea高度
+      setTimeout(autoResizeTextarea, 0)
+    }
+    
+    window.addEventListener('textareaContentUpdated', handleTextareaContentUpdated)
+    
+    return () => {
+      window.removeEventListener('textareaContentUpdated', handleTextareaContentUpdated)
+    }
+  }, [autoResizeTextarea])
+  
   // 组件挂载时的初始化
   useEffect(() => {
     autoResizeTextarea()
@@ -46,9 +72,9 @@ const ChatTextarea = ({
   return (
     <div className={`flex-1 relative ${className}`}>
       <Textarea
-        ref={textareaRefCallback}
+        ref={textareaRef}
         value={textarea.message}
-        onChange={handleInputChange}
+        onChange={handleInputChangeWithResize}
         onKeyDown={handleKeyDown}
         onCompositionStart={() => setIsComposing(true)}
         onCompositionEnd={() => setIsComposing(false)}
