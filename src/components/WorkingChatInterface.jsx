@@ -10,11 +10,11 @@ import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
 import { FileUploadButton, FilePreview } from './FileUpload'
 
-import { Paperclip } from 'lucide-react'
 import ChatStatusBar from './ChatStatusBar'
 import SendButton from './SendButton'
 import ChatTextarea from './ChatTextarea'
 import ASRControlIndicator from './ASRControlIndicator'
+import FileUploadControl from './FileUploadControl'
 
 /**
  * 完全可用的主聊天界面组件
@@ -32,7 +32,7 @@ const WorkingChatInterface = ({
   // WebSocket和Stores
   const { sendMessage, connectionStatus } = useWebSocket()
   const {messages, addUserMessage, scrollToBottom, showSearchIndicator} = useChatMessagesStore()
-  const {files, ui: fileUI, selectFile, removeFile, startUpload, getCurrentFile} = useFileUploadStore()
+  const {files, ui: fileUI, removeFile, startUpload, getCurrentFile} = useFileUploadStore()
   const {
     status: recording,
     connection: asrConnection,
@@ -74,14 +74,6 @@ const WorkingChatInterface = ({
     console.log('🛑 打断所有TTS播放')
     useTTSStore.getState().stopAllAudio()
     useTTSStore.getState().clearAudioQueue()
-  }
-
-
-
-  // 处理文件选择
-  const handleFileSelect = (file) => {
-    console.log('📎 选择文件:', file.name)
-    selectFile(file)
   }
 
   // 处理文件上传
@@ -353,26 +345,12 @@ const WorkingChatInterface = ({
               <div className="flex items-end p-3 space-x-2 sm:space-x-3">
                 {/* 左侧工具栏 */}
                 <div className="flex items-center space-x-1 sm:space-x-2">
-                  {/* 文件上传按钮 */}
-                  {enableFileUpload && (
-                    <div className="relative group">
-                      <FileUploadButton
-                        onFileSelect={handleFileSelect}
-                        disabled={textarea.isSending || isUploading}
-                      >
-                        <div className={`p-2 rounded-lg transition-all duration-200 ${
-                          textarea.isSending || isUploading
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-800 cursor-pointer'
-                        }`}>
-                          <Paperclip className="w-4 h-4" />
-                        </div>
-                      </FileUploadButton>
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                        添加附件
-                      </div>
-                    </div>
-                  )}
+                  {/* 文件上传控制 */}
+                  <FileUploadControl
+                    enableFileUpload={enableFileUpload}
+                    isSending={textarea.isSending}
+                    isUploading={isUploading}
+                  />
 
                   {/* ASR控制指示器 */}
                   <ASRControlIndicator
