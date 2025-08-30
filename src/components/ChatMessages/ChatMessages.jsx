@@ -1,23 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useChatMessagesStore } from '@/stores/chatMessagesStore'
-import { cn } from '@/lib/utils'
+import { cn, debounce } from '@/lib/utils'
 import Message from './Message'
 import SearchIndicator from './SearchIndicator'
 import { Button } from '../ui/button'
 import { ArrowDown } from 'lucide-react'
-
-// 防抖函数
-const debounce = (func, wait) => {
-  let timeout
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout)
-      func(...args)
-    }
-    clearTimeout(timeout)
-    timeout = setTimeout(later, wait)
-  }
-}
 
 /**
  * 聊天消息容器组件
@@ -56,6 +43,8 @@ const ChatMessages = ({
   ...props
 }) => {
   const containerRef = useRef(null)
+  const debouncedCheckScrollRef = useRef(null)
+  const autoScrollTimeoutRef = useRef(null)
 
   const {
     messages,
@@ -72,13 +61,18 @@ const ChatMessages = ({
     setContainerRef(containerRef)
   }, [setContainerRef])
 
-  // 防抖的滚动处理函数
-  const debouncedCheckScroll = useCallback(
-    debounce(() => {
+  // 创建防抖的滚动处理函数（只创建一次）
+  useEffect(() => {
+    debouncedCheckScrollRef.current = debounce(() => {
       checkScrollPosition()
-    }, 16), // 约60fps
-    [checkScrollPosition]
-  )
+    }, 16) // 约60fps
+
+    return () => {
+      if (debouncedCheckScrollRef.current) {
+        debouncedCheckScrollRef.current.cancel()
+      }
+    }
+  }, [checkScrollPosition])
 
   // 监听滚动事件
   useEffect(() => {
@@ -86,17 +80,32 @@ const ChatMessages = ({
     if (!container) return
 
     const handleScroll = () => {
-      debouncedCheckScroll()
+      if (debouncedCheckScrollRef.current) {
+        debouncedCheckScrollRef.current()
+      }
     }
 
     container.addEventListener('scroll', handleScroll, { passive: true })
-    return () => container.removeEventListener('scroll', handleScroll)
-  }, [debouncedCheckScroll])
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+    }
+  }, []) // 空依赖数组，因为防抖函数通过 ref 访问
 
   // 监听消息变化，自动滚动
   useEffect(() => {
     if (ui.autoScroll && ui.isScrolledToBottom) {
-      setTimeout(scrollToBottom, 100)
+      // 清理之前的定时器
+      if (autoScrollTimeoutRef.current) {
+        clearTimeout(autoScrollTimeoutRef.current)
+      }
+      
+      autoScrollTimeoutRef.current = setTimeout(scrollToBottom, 100)
+    }
+
+    return () => {
+      if (autoScrollTimeoutRef.current) {
+        clearTimeout(autoScrollTimeoutRef.current)
+      }
     }
   }, [messages.length, ui.autoScroll, ui.isScrolledToBottom, scrollToBottom])
 
