@@ -1,10 +1,23 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useChatMessagesStore } from '@/stores/chatMessagesStore'
 import { cn } from '@/lib/utils'
 import Message from './Message'
 import SearchIndicator from './SearchIndicator'
 import { Button } from '../ui/button'
 import { ArrowDown } from 'lucide-react'
+
+// 防抖函数
+const debounce = (func, wait) => {
+  let timeout
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout)
+      func(...args)
+    }
+    clearTimeout(timeout)
+    timeout = setTimeout(later, wait)
+  }
+}
 
 /**
  * 聊天消息容器组件
@@ -43,7 +56,6 @@ const ChatMessages = ({
   ...props
 }) => {
   const containerRef = useRef(null)
-  const [showScrollButton, setShowScrollButton] = useState(false)
 
   const {
     messages,
@@ -60,22 +72,26 @@ const ChatMessages = ({
     setContainerRef(containerRef)
   }, [setContainerRef])
 
+  // 防抖的滚动处理函数
+  const debouncedCheckScroll = useCallback(
+    debounce(() => {
+      checkScrollPosition()
+    }, 16), // 约60fps
+    [checkScrollPosition]
+  )
+
   // 监听滚动事件
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
     const handleScroll = () => {
-      checkScrollPosition()
-
-      // 检查是否需要显示滚动到底部按钮
-      const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 100
-      setShowScrollButton(!isAtBottom && messages.length > 0)
+      debouncedCheckScroll()
     }
 
-    container.addEventListener('scroll', handleScroll)
+    container.addEventListener('scroll', handleScroll, { passive: true })
     return () => container.removeEventListener('scroll', handleScroll)
-  }, [checkScrollPosition, messages.length])
+  }, [debouncedCheckScroll])
 
   // 监听消息变化，自动滚动
   useEffect(() => {
@@ -208,7 +224,7 @@ const ChatMessages = ({
       </div>
 
       {/* 滚动到底部按钮 */}
-      {showScrollButton && (
+      {ui.showScrollButton && (
         <div className="absolute bottom-4 right-4">
           <Button
             variant="secondary"

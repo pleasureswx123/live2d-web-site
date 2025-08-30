@@ -108,7 +108,7 @@ export const useASRStore = create((set, get) => ({
   // 发送消息
   sendASRMessage: async () => {
     // 获取所有需要的依赖
-    const { addUserMessage, scrollToBottom, showSearchIndicator } = useChatMessagesStore.getState()
+    const { addUserMessage, scrollToBottom } = useChatMessagesStore.getState()
     const { removeFile, uploadFileToServer, getCurrentFile } = useFileUploadStore.getState()
     const { stopAllTTSAudio } = useTTSStore.getState()
     const { isSearchEnabled } = useSystemControlStore.getState()
@@ -155,7 +155,6 @@ export const useASRStore = create((set, get) => ({
 
       if (shouldTriggerSearch(trimmedMessage)) {
         messageData.search_query = trimmedMessage
-        showSearchIndicator(trimmedMessage)
       }
 
       // 处理文件上传

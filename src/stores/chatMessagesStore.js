@@ -13,6 +13,8 @@ export const useChatMessagesStore = create((set, get) => ({
   // UI状态
   ui: {
     isScrolledToBottom: true,
+    isNearBottom: true,
+    showScrollButton: false,
     autoScroll: true,
     showTyping: false,
     searchQuery: '',
@@ -429,18 +431,34 @@ export const useChatMessagesStore = create((set, get) => ({
   },
   // 检查是否滚动到底部
   checkScrollPosition: () => {
-    const {ui} = get()
+    const {ui, messages} = get()
     const container = ui.containerRef?.current
-    if (container) {
-      const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50
-      if (ui.isScrolledToBottom !== isAtBottom) {
-        set((state) => ({
-          ui: {
-            ...state.ui,
-            isScrolledToBottom: isAtBottom
-          }
-        }))
-      }
+    if (!container) return
+
+    const scrollTop = container.scrollTop
+    const scrollHeight = container.scrollHeight
+    const clientHeight = container.clientHeight
+    const threshold = 50 // 滚动到底部的阈值
+
+    // 更精确的滚动检测
+    const isAtBottom = scrollHeight - scrollTop <= clientHeight + threshold
+    const isNearBottom = scrollHeight - scrollTop <= clientHeight + threshold * 2
+    const shouldShowScrollButton = !isAtBottom && messages.length > 0
+
+    // 只有当状态真正改变时才更新
+    const hasChanges = ui.isScrolledToBottom !== isAtBottom || 
+                      ui.isNearBottom !== isNearBottom ||
+                      ui.showScrollButton !== shouldShowScrollButton
+
+    if (hasChanges) {
+      set((state) => ({
+        ui: {
+          ...state.ui,
+          isScrolledToBottom: isAtBottom,
+          isNearBottom: isNearBottom,
+          showScrollButton: shouldShowScrollButton
+        }
+      }))
     }
   },
   // 搜索消息
@@ -500,6 +518,8 @@ export const useChatMessagesStore = create((set, get) => ({
       },
       ui: {
         isScrolledToBottom: true,
+        isNearBottom: true,
+        showScrollButton: false,
         autoScroll: true,
         showTyping: false,
         searchQuery: '',

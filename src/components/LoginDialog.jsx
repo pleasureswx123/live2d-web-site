@@ -2,7 +2,7 @@ import {useState, useEffect, useRef} from 'react'
 import {motion, AnimatePresence} from 'framer-motion'
 import * as Dialog from '@radix-ui/react-dialog'
 import {Command} from 'cmdk'
-import {useUserAuthStore} from '../stores/userAuthStore'
+import {useUserAuthStore} from '@/stores/userAuthStore'
 import {X, User, BarChart3, LogOut, Loader2} from 'lucide-react'
 
 const LoginDialog = () => {

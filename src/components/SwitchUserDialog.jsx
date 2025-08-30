@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import * as Dialog from '@radix-ui/react-dialog'
-import { useUserAuthStore } from '../stores/userAuthStore'
-import { useLastActiveTime } from '../hooks/useTimeFormat'
+import { useUserAuthStore } from '@/stores/userAuthStore'
+import { useLastActiveTime } from '@/hooks/useTimeFormat'
 import { X, Users, RefreshCw, Clock, User } from 'lucide-react'
 
 // 用户项组件
