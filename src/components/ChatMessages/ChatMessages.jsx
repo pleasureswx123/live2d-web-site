@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef } from 'react'
 import { useChatMessagesStore } from '@/stores/chatMessagesStore'
 import { cn, debounce } from '@/lib/utils'
 import Message from './Message'
@@ -53,7 +53,6 @@ const ChatMessages = ({
     scrollToBottom,
     checkScrollPosition,
     deleteMessage,
-    hideSearchIndicator
   } = useChatMessagesStore()
 
   // 设置容器引用
@@ -98,7 +97,7 @@ const ChatMessages = ({
       if (autoScrollTimeoutRef.current) {
         clearTimeout(autoScrollTimeoutRef.current)
       }
-      
+
       autoScrollTimeoutRef.current = setTimeout(scrollToBottom, 100)
     }
 
