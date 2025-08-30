@@ -1,12 +1,12 @@
 import { createContext, useContext, useEffect, useRef, useState, useMemo, useCallback } from 'react'
-import { useUserAuthStore } from '../stores/userAuthStore'
-import { useVoiceStore } from '../stores/voiceStore'
-import { useASRStore } from '../stores/asrStore'
-import { useTTSStore } from '../stores/ttsStore'
-import { useProactiveChatStore } from '../stores/proactiveChatStore'
-import { useChatMessagesStore } from '../stores/chatMessagesStore'
-import { useProfileStore } from '../stores/profileStore'
-import { useConversionStore } from '../stores/conversionStore'
+import { useUserAuthStore } from '@/stores/userAuthStore'
+import { useVoiceStore } from '@/stores/voiceStore'
+import { useASRStore } from '@/stores/asrStore'
+import { useTTSStore } from '@/stores/ttsStore'
+import { useProactiveChatStore } from '@/stores/proactiveChatStore'
+import { useChatMessagesStore } from '@/stores/chatMessagesStore'
+import { useProfileStore } from '@/stores/profileStore'
+import { useConversionStore } from '@/stores/conversionStore'
 
 // 创建 WebSocket Context
 const WebSocketContext = createContext()
@@ -156,18 +156,18 @@ export const WebSocketProvider = ({ children }) => {
       case 'generation_chunk':
         if (data.content) {
           useChatMessagesStore.getState().appendToBotMessage(data.content)
-          // 表情同步 - 从文本内容中匹配表情
-          try {
-            const matchedExpression = useTTSStore.getState().matchExpression(data.content)
-            if (matchedExpression) {
-              // 异步播放表情，不阻塞文本显示
-              useTTSStore.getState().playLive2DExpression(matchedExpression).catch(error => {
-                console.warn('🎭 表情播放失败:', error)
-              })
-            }
-          } catch (error) {
-            console.error('❌ 表情匹配异常:', error)
-          }
+          // // 表情同步 - 从文本内容中匹配表情
+          // try {
+          //   const matchedExpression = useTTSStore.getState().matchExpression(data.content)
+          //   if (matchedExpression) {
+          //     // 异步播放表情，不阻塞文本显示
+          //     useTTSStore.getState().playLive2DExpression(matchedExpression).catch(error => {
+          //       console.warn('🎭 表情播放失败:', error)
+          //     })
+          //   }
+          // } catch (error) {
+          //   console.error('❌ 表情匹配异常:', error)
+          // }
         }
         break
 

@@ -1,8 +1,8 @@
 import {create} from 'zustand'
-import {useChatMessagesStore} from '../stores/chatMessagesStore'
-import {useFileUploadStore} from '../stores/fileUploadStore'
-import {useTTSStore} from '../stores/ttsStore'
-import {useSystemControlStore} from '../stores/systemControlStore'
+import {useChatMessagesStore} from '@/stores/chatMessagesStore'
+import {useFileUploadStore} from '@/stores/fileUploadStore'
+import {useTTSStore} from '@/stores/ttsStore'
+import {useSystemControlStore} from '@/stores/systemControlStore'
 
 // ASR语音识别状态管理store - 重构优化版本
 export const useASRStore = create((set, get) => ({

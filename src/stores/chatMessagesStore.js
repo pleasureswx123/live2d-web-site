@@ -1,4 +1,5 @@
 import {create} from 'zustand'
+import {useTTSStore} from "@/stores/ttsStore.js";
 // 聊天消息状态管理store
 export const useChatMessagesStore = create((set, get) => ({
   // 消息数据
@@ -334,14 +335,36 @@ export const useChatMessagesStore = create((set, get) => ({
   finishStreamingMessage: () => {
     const {currentStreamingMessageId} = get()
     if (currentStreamingMessageId) {
-      set((state) => ({
-        messages: state.messages.map(msg => msg.id === currentStreamingMessageId ? {
-          ...msg,
+      set((state) => {
+        const currentMessage = state.messages.find(msg => msg.id === currentStreamingMessageId);
+        const content = currentMessage.content.trim();
+        if (content) {
+          // 表情同步 - 从文本内容中匹配表情
+          try {
+            const matchedExpression = useTTSStore.getState().matchExpression(content)
+            if (matchedExpression) {
+              // 异步播放表情，不阻塞文本显示
+              useTTSStore.getState().playLive2DExpression(matchedExpression).catch(error => {
+                console.warn('🎭 表情播放失败:', error)
+              })
+            }
+          } catch (error) {
+            console.error('❌ 表情匹配异常:', error)
+          }
+        }
+        const msgInfo = {
+          ...currentMessage,
           status: 'sent',
           isStreaming: false
-        } : msg),
-        currentStreamingMessageId: null
-      }))
+        }
+        const messages = state.messages.map(msg =>
+          msg.id === currentStreamingMessageId ? msgInfo : msg
+        )
+        return {
+          messages,
+          currentStreamingMessageId: null
+        };
+      })
       console.log('✅ 完成流式消息，ID:', currentStreamingMessageId)
     }
   },

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { useChatMessagesStore } from '../../stores/chatMessagesStore'
-import { cn } from '../../lib/utils'
+import { useChatMessagesStore } from '@/stores/chatMessagesStore'
+import { cn } from '@/lib/utils'
 import Message from './Message'
 import SearchIndicator from './SearchIndicator'
 import { Button } from '../ui/button'
