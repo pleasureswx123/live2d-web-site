@@ -15,7 +15,6 @@ import { ArrowDown } from 'lucide-react'
  * @param {boolean} props.showTimestamp - 是否显示时间戳
  * @param {boolean} props.showStatus - 是否显示消息状态
  * @param {boolean} props.showActions - 是否显示消息操作
- * @param {boolean} props.enableVirtualScroll - 是否启用虚拟滚动
  * @param {Function} props.onMessageClick - 消息点击回调
  * @param {Function} props.onAvatarClick - 头像点击回调
  * @param {Function} props.onAttachmentClick - 附件点击回调
@@ -31,7 +30,6 @@ const ChatMessages = ({
   showTimestamp = true,
   showStatus = true,
   showActions = false,
-  enableVirtualScroll = false,
   onMessageClick,
   onAvatarClick,
   onAttachmentClick,
@@ -55,58 +53,6 @@ const ChatMessages = ({
     deleteMessage,
   } = useChatMessagesStore()
 
-  // 设置容器引用
-  useEffect(() => {
-    setContainerRef(containerRef)
-  }, [setContainerRef])
-
-  // 创建防抖的滚动处理函数（只创建一次）
-  useEffect(() => {
-    debouncedCheckScrollRef.current = debounce(() => {
-      checkScrollPosition()
-    }, 16) // 约60fps
-
-    return () => {
-      if (debouncedCheckScrollRef.current) {
-        debouncedCheckScrollRef.current.cancel()
-      }
-    }
-  }, [checkScrollPosition])
-
-  // 监听滚动事件
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-
-    const handleScroll = () => {
-      if (debouncedCheckScrollRef.current) {
-        debouncedCheckScrollRef.current()
-      }
-    }
-
-    container.addEventListener('scroll', handleScroll, { passive: true })
-    return () => {
-      container.removeEventListener('scroll', handleScroll)
-    }
-  }, []) // 空依赖数组，因为防抖函数通过 ref 访问
-
-  // 监听消息变化，自动滚动
-  useEffect(() => {
-    if (ui.autoScroll && ui.isScrolledToBottom) {
-      // 清理之前的定时器
-      if (autoScrollTimeoutRef.current) {
-        clearTimeout(autoScrollTimeoutRef.current)
-      }
-
-      autoScrollTimeoutRef.current = setTimeout(scrollToBottom, 100)
-    }
-
-    return () => {
-      if (autoScrollTimeoutRef.current) {
-        clearTimeout(autoScrollTimeoutRef.current)
-      }
-    }
-  }, [messages.length, ui.autoScroll, ui.isScrolledToBottom, scrollToBottom])
 
   // 处理消息删除
   const handleMessageDelete = (messageId) => {
@@ -150,6 +96,80 @@ const ChatMessages = ({
     }
   }
 
+  // 设置容器引用
+  useEffect(() => {
+    setContainerRef(containerRef)
+  }, [setContainerRef])
+
+  // 创建防抖的滚动处理函数（只创建一次）
+  useEffect(() => {
+    debouncedCheckScrollRef.current = debounce(() => {
+      checkScrollPosition()
+    }, 16) // 约60fps
+
+    return () => {
+      if (debouncedCheckScrollRef.current) {
+        debouncedCheckScrollRef.current.cancel()
+      }
+    }
+  }, [checkScrollPosition])
+
+  // 监听滚动事件
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const handleScroll = () => {
+      if (debouncedCheckScrollRef.current) {
+        debouncedCheckScrollRef.current()
+      }
+    }
+
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+    }
+  }, []) // 空依赖数组，因为防抖函数通过 ref 访问
+
+  // 监听消息变化，自动滚动
+  useEffect(() => {
+    if (ui.autoScroll && ui.isScrolledToBottom) {
+      // 清理之前的定时器
+      if (autoScrollTimeoutRef.current) {
+        clearTimeout(autoScrollTimeoutRef.current)
+      }
+      
+      autoScrollTimeoutRef.current = setTimeout(scrollToBottom, 100)
+    }
+
+    return () => {
+      if (autoScrollTimeoutRef.current) {
+        clearTimeout(autoScrollTimeoutRef.current)
+      }
+    }
+  }, [messages.length, ui.autoScroll, ui.isScrolledToBottom, scrollToBottom])
+
+
+  // 渲染消息列表
+  const renderMessages = () => {
+    return messages.map((message) => (
+      <Message
+        key={message.id}
+        message={message}
+        showAvatar={showAvatar}
+        showTimestamp={showTimestamp}
+        showStatus={showStatus}
+        showActions={showActions}
+        onMessageClick={onMessageClick}
+        onAvatarClick={onAvatarClick}
+        onAttachmentClick={handleAttachmentClick}
+        onDelete={handleMessageDelete}
+        onEdit={handleMessageEdit}
+        onReply={handleMessageReply}
+      />
+    ))
+  }
+
   // 渲染空状态
   const renderEmptyState = () => {
     if (emptyState) {
@@ -169,45 +189,6 @@ const ChatMessages = ({
         </p>
       </div>
     )
-  }
-
-  // 渲染消息列表
-  const renderMessages = () => {
-    if (enableVirtualScroll && messages.length > 100) {
-      return messages.map((message) => (
-        <Message
-          key={message.id}
-          message={message}
-          showAvatar={showAvatar}
-          showTimestamp={showTimestamp}
-          showStatus={showStatus}
-          showActions={showActions}
-          onMessageClick={onMessageClick}
-          onAvatarClick={onAvatarClick}
-          onAttachmentClick={handleAttachmentClick}
-          onDelete={handleMessageDelete}
-          onEdit={handleMessageEdit}
-          onReply={handleMessageReply}
-        />
-      ))
-    }
-
-    return messages.map((message) => (
-      <Message
-        key={message.id}
-        message={message}
-        showAvatar={showAvatar}
-        showTimestamp={showTimestamp}
-        showStatus={showStatus}
-        showActions={showActions}
-        onMessageClick={onMessageClick}
-        onAvatarClick={onAvatarClick}
-        onAttachmentClick={handleAttachmentClick}
-        onDelete={handleMessageDelete}
-        onEdit={handleMessageEdit}
-        onReply={handleMessageReply}
-      />
-    ))
   }
 
   return (

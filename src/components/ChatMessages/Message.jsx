@@ -23,7 +23,7 @@ import { Button } from '../ui/button'
  * @param {Function} props.onEdit - 编辑消息回调
  * @param {Function} props.onReply - 回复消息回调
  */
-const Message = ({
+const Message = React.memo(({
   message,
   className,
   showAvatar = true,
@@ -311,6 +311,6 @@ const Message = ({
       )}
     </div>
   )
-}
+})
 
 export default Message
