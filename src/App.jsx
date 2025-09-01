@@ -1,4 +1,4 @@
-import {useState, useEffect} from 'react'
+import {useEffect} from 'react'
 import {useVoiceStore} from './stores/voiceStore'
 import {WebSocketProvider} from './contexts/WebSocketContext'
 import {ToastProvider, useToast} from './components/ui/toast'
