@@ -3,6 +3,8 @@ import {useVoiceStore} from './stores/voiceStore'
 import {WebSocketProvider} from './contexts/WebSocketContext'
 import {ToastProvider, useToast} from './components/ui/toast'
 import {useUserAuthStore} from './stores/userAuthStore'
+import {useLive2DModel} from './hooks/useLive2DModel'
+import {useViewport} from './hooks/useViewport'
 import Live2DViewer from './components/Live2DViewer'
 // import SettingsDrawer from './components/SettingsDrawer'
 import SidebarDrawer from './components/SidebarDrawer'
@@ -21,37 +23,20 @@ import LoginDialog from './components/LoginDialog'
 import SwitchUserDialog from './components/SwitchUserDialog'
 import WebSocketStatus from './components/WebSocketStatus'
 import WorkingChatInterface from './components/WorkingChatInterface'
-// 自适应窗口尺寸（含 dpr 改变时的刷新）
-function useViewport() {
-  const getSize = () => ({
-    width: Math.max(1, window.innerWidth),
-    height: Math.max(1, window.innerHeight),
-  })
-  const [size, setSize] = useState(getSize)
-  useEffect(() => {
-    let raf = 0
-    const onResize = () => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => setSize(getSize()))
-    }
-    window.addEventListener('resize', onResize)
-    // 有些设备 dpr 变化不会触发 resize，这里也监听一下
-    const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`)
-    mq.addEventListener?.('change', onResize)
-    return () => {
-      window.removeEventListener('resize', onResize)
-      mq.removeEventListener?.('change', onResize)
-      cancelAnimationFrame(raf)
-    }
-  }, [])
-  return size
-}
 // 内部组件用于注册Toast函数
 const AppContent = () => {
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-  const [currentModel, setCurrentModel] = useState(null)
-  const [pixiApp, setPixiApp] = useState(null)
-  const [modelInfo, setModelInfo] = useState(null)
+  // const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+
+  // 使用 Live2D 模型管理 Hook
+  const {
+    currentModel,
+    pixiApp,
+    modelInfo,
+    handleModelLoad,
+    handleModelError,
+    isModelLoaded,
+    isAppReady
+  } = useLive2DModel()
 
   // 获取用户认证初始化函数
   const initializeUserSystem = useUserAuthStore(state => state.initializeUserSystem)
@@ -69,17 +54,6 @@ const AppContent = () => {
   useEffect(() => {
     registerToast(addToast)
   }, [registerToast, addToast])
-  // 处理模型加载
-  const handleModelLoad = (model, app, info) => {
-    setCurrentModel(model)
-    setPixiApp(app)
-    setModelInfo(info)
-    console.log('📦 模型实例已传递给 App 组件:', info)
-  }
-  // 处理模型加载错误
-  const handleModelError = (error) => {
-    console.error('❌ 模型加载失败:', error)
-  }
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-gray-900">
 
